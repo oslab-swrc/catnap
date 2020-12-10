@@ -47,6 +47,8 @@
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Paul E. McKenney <paulmck@us.ibm.com>");
 
+torture_param(int, critsec_length, -1,
+	     "Length of critical section (= lock holding time)  in nanoseconds");
 torture_param(int, nwriters_stress, -1,
 	     "Number of write-locking stress-test threads");
 torture_param(int, nreaders_stress, -1,
@@ -103,13 +105,14 @@ struct lock_torture_ops {
 struct lock_torture_cxt {
 	int nrealwriters_stress;
 	int nrealreaders_stress;
+	int critsec_length;
 	bool debug_lock;
 	atomic_t n_lock_torture_errors;
 	struct lock_torture_ops *cur_ops;
 	struct lock_stress_stats *lwsa; /* writer statistics */
 	struct lock_stress_stats *lrsa; /* reader statistics */
 };
-static struct lock_torture_cxt cxt = { 0, 0, false,
+static struct lock_torture_cxt cxt = { 0, 0, 0, false,
 				       ATOMIC_INIT(0),
 				       NULL, NULL};
 /*
@@ -194,6 +197,52 @@ static struct lock_torture_ops spin_lock_ops = {
 	.read_delay     = NULL,
 	.readunlock     = NULL,
 	.name		= "spin_lock"
+};
+
+static inline void delay_loop(unsigned long loops)
+{
+	asm volatile(
+		"	test %0,%0	\n"
+		"	jz 3f		\n"
+		"	jmp 1f		\n"
+
+		".align 16		\n"
+		"1:	jmp 2f		\n"
+
+		".align 16		\n"
+		"2:	dec %0		\n"
+		"	jnz 2b		\n"
+		"3:	dec %0		\n"
+
+		: /* we don't need output */
+		:"a" (loops)
+	);
+}
+
+static void torture_catnap_threshold_delay(struct torture_random_state *trsp)
+{
+	//TODO:
+	unsigned long lpj = this_cpu_read(cpu_info.loops_per_jiffy) ? : loops_per_jiffy;
+	int d0;
+	unsigned long xloops = cxt.critsec_length * 0x00005;
+
+	xloops *= 4;
+	asm("mull %%edx"
+		:"=d" (xloops), "=&a" (d0)
+		:"1" (xloops), "0" (lpj * (HZ / 4)));
+
+	delay_loop(++xloops);
+}
+
+static struct lock_torture_ops catnap_threshold_ops = {
+	.writelock	= torture_spin_lock_write_lock,
+	.write_delay	= torture_catnap_threshold_delay,
+	.task_boost     = torture_boost_dummy,
+	.writeunlock	= torture_spin_lock_write_unlock,
+	.readlock       = NULL,
+	.read_delay     = NULL,
+	.readunlock     = NULL,
+	.name		= "catnap_threshold"
 };
 
 static int torture_spin_lock_write_lock_irq(void)
@@ -789,8 +838,9 @@ lock_torture_print_module_parms(struct lock_torture_ops *cur_ops,
 				const char *tag)
 {
 	pr_alert("%s" TORTURE_FLAG
-		 "--- %s%s: nwriters_stress=%d nreaders_stress=%d stat_interval=%d verbose=%d shuffle_interval=%d stutter=%d shutdown_secs=%d onoff_interval=%d onoff_holdoff=%d\n",
+		 "--- %s%s: critsec_length=%d nwriters_stress=%d nreaders_stress=%d stat_interval=%d verbose=%d shuffle_interval=%d stutter=%d shutdown_secs=%d onoff_interval=%d onoff_holdoff=%d\n",
 		 torture_type, tag, cxt.debug_lock ? " [debug]": "",
+		 cxt.critsec_length,
 		 cxt.nrealwriters_stress, cxt.nrealreaders_stress, stat_interval,
 		 verbose, shuffle_interval, stutter, shutdown_secs,
 		 onoff_interval, onoff_holdoff);
@@ -855,6 +905,7 @@ static int __init lock_torture_init(void)
 	static struct lock_torture_ops *torture_ops[] = {
 		&lock_busted_ops,
 		&spin_lock_ops, &spin_lock_irq_ops,
+		&catnap_threshold_ops,
 		&rw_lock_ops, &rw_lock_irq_ops,
 		&mutex_lock_ops,
 		&ww_mutex_lock_ops,
@@ -894,6 +945,11 @@ static int __init lock_torture_init(void)
 	if (cxt.cur_ops->init)
 		cxt.cur_ops->init();
 
+	if (critsec_length >= 0)
+		cxt.critsec_length = critsec_length;
+	else
+		cxt.critsec_length = 1500;
+	
 	if (nwriters_stress >= 0)
 		cxt.nrealwriters_stress = nwriters_stress;
 	else
