@@ -1492,7 +1492,7 @@ static int child_wait_callback(wait_queue_entry_t *wait, unsigned mode,
 
 void __wake_up_parent(struct task_struct *p, struct task_struct *parent)
 {
-	__wake_up_sync_key(&parent->signal->wait_chldexit,
+	__wake_up_sync_key_spinning(&parent->signal->wait_chldexit,
 				TASK_INTERRUPTIBLE, 1, p);
 }
 
@@ -1505,7 +1505,7 @@ static long do_wait(struct wait_opts *wo)
 
 	init_waitqueue_func_entry(&wo->child_wait, child_wait_callback);
 	wo->child_wait.private = current;
-	add_wait_queue(&current->signal->wait_chldexit, &wo->child_wait);
+	add_wait_queue_spinning(&current->signal->wait_chldexit, &wo->child_wait);
 repeat:
 	/*
 	 * If there is nothing that can match our criteria, just get out.
@@ -1546,7 +1546,7 @@ notask:
 	}
 end:
 	__set_current_state(TASK_RUNNING);
-	remove_wait_queue(&current->signal->wait_chldexit, &wo->child_wait);
+	remove_wait_queue_spinning(&current->signal->wait_chldexit, &wo->child_wait);
 	return retval;
 }
 

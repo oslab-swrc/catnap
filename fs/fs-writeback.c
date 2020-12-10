@@ -1040,7 +1040,7 @@ void sb_mark_inode_writeback(struct inode *inode)
 	unsigned long flags;
 
 	if (list_empty(&inode->i_wb_list)) {
-		spin_lock_irqsave(&sb->s_inode_wblist_lock, flags);
+		spin_lock_irqsave_spinning(&sb->s_inode_wblist_lock, flags);
 		if (list_empty(&inode->i_wb_list)) {
 			list_add_tail(&inode->i_wb_list, &sb->s_inodes_wb);
 			trace_sb_mark_inode_writeback(inode);
@@ -1058,7 +1058,7 @@ void sb_clear_inode_writeback(struct inode *inode)
 	unsigned long flags;
 
 	if (!list_empty(&inode->i_wb_list)) {
-		spin_lock_irqsave(&sb->s_inode_wblist_lock, flags);
+		spin_lock_irqsave_spinning(&sb->s_inode_wblist_lock, flags);
 		if (!list_empty(&inode->i_wb_list)) {
 			list_del_init(&inode->i_wb_list);
 			trace_sb_clear_inode_writeback(inode);
@@ -2288,7 +2288,7 @@ static void wait_sb_inodes(struct super_block *sb)
 	 * completion.
 	 */
 	rcu_read_lock();
-	spin_lock_irq(&sb->s_inode_wblist_lock);
+	spin_lock_irq_spinning(&sb->s_inode_wblist_lock);
 	list_splice_init(&sb->s_inodes_wb, &sync_list);
 
 	/*
@@ -2325,7 +2325,7 @@ static void wait_sb_inodes(struct super_block *sb)
 		if (inode->i_state & (I_FREEING|I_WILL_FREE|I_NEW)) {
 			spin_unlock(&inode->i_lock);
 
-			spin_lock_irq(&sb->s_inode_wblist_lock);
+			spin_lock_irq_spinning(&sb->s_inode_wblist_lock);
 			continue;
 		}
 		__iget(inode);
@@ -2344,7 +2344,7 @@ static void wait_sb_inodes(struct super_block *sb)
 		iput(inode);
 
 		rcu_read_lock();
-		spin_lock_irq(&sb->s_inode_wblist_lock);
+		spin_lock_irq_spinning(&sb->s_inode_wblist_lock);
 	}
 	spin_unlock_irq(&sb->s_inode_wblist_lock);
 	rcu_read_unlock();

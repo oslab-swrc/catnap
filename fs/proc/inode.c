@@ -174,7 +174,8 @@ static void close_pdeo(struct proc_dir_entry *pde, struct pde_opener *pdeo)
 		spin_unlock(&pde->pde_unload_lock);
 		file = pdeo->file;
 		pde->proc_fops->release(file_inode(file), file);
-		spin_lock(&pde->pde_unload_lock);
+		//spin_lock(&pde->pde_unload_lock);
+		spin_lock_spinning(&pde->pde_unload_lock);
 		/* After ->release. */
 		list_del(&pdeo->lh);
 		c = pdeo->c;
@@ -195,12 +196,14 @@ void proc_entry_rundown(struct proc_dir_entry *de)
 
 	/* ->pde_openers list can't grow from now on. */
 
-	spin_lock(&de->pde_unload_lock);
+	//spin_lock(&de->pde_unload_lock);
+	spin_lock_spinning(&de->pde_unload_lock);
 	while (!list_empty(&de->pde_openers)) {
 		struct pde_opener *pdeo;
 		pdeo = list_first_entry(&de->pde_openers, struct pde_opener, lh);
 		close_pdeo(de, pdeo);
-		spin_lock(&de->pde_unload_lock);
+		//spin_lock(&de->pde_unload_lock);
+		spin_lock_spinning(&de->pde_unload_lock);
 	}
 	spin_unlock(&de->pde_unload_lock);
 }
@@ -373,7 +376,8 @@ static int proc_reg_open(struct inode *inode, struct file *file)
 			pdeo->file = file;
 			pdeo->closing = false;
 			pdeo->c = NULL;
-			spin_lock(&pde->pde_unload_lock);
+			//spin_lock(&pde->pde_unload_lock);
+			spin_lock_spinning(&pde->pde_unload_lock);
 			list_add(&pdeo->lh, &pde->pde_openers);
 			spin_unlock(&pde->pde_unload_lock);
 		} else
@@ -389,7 +393,8 @@ static int proc_reg_release(struct inode *inode, struct file *file)
 {
 	struct proc_dir_entry *pde = PDE(inode);
 	struct pde_opener *pdeo;
-	spin_lock(&pde->pde_unload_lock);
+	//spin_lock(&pde->pde_unload_lock);
+	spin_lock_spinning(&pde->pde_unload_lock);
 	list_for_each_entry(pdeo, &pde->pde_openers, lh) {
 		if (pdeo->file == file) {
 			close_pdeo(pde, pdeo);

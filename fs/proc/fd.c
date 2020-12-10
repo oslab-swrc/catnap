@@ -34,7 +34,7 @@ static int seq_show(struct seq_file *m, void *v)
 	if (files) {
 		unsigned int fd = proc_fd(m->private);
 
-		spin_lock(&files->file_lock);
+		spin_lock_spinning(&files->file_lock);
 		file = fcheck_files(files, fd);
 		if (file) {
 			struct fdtable *fdt = files_fdtable(files);
@@ -160,7 +160,7 @@ static int proc_fd_link(struct dentry *dentry, struct path *path)
 		unsigned int fd = proc_fd(d_inode(dentry));
 		struct file *fd_file;
 
-		spin_lock(&files->file_lock);
+		spin_lock_spinning(&files->file_lock);
 		fd_file = fcheck_files(files, fd);
 		if (fd_file) {
 			*path = fd_file->f_path;

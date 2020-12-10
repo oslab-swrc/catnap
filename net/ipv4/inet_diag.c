@@ -980,7 +980,7 @@ skip_listen_ht:
 next_chunk:
 		num = 0;
 		accum = 0;
-		spin_lock_bh(lock);
+		spin_lock_bh_spinning(lock);
 		sk_nulls_for_each(sk, node, &head->chain) {
 			int state;
 

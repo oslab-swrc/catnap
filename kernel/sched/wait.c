@@ -25,6 +25,18 @@ void add_wait_queue(struct wait_queue_head *wq_head, struct wait_queue_entry *wq
 }
 EXPORT_SYMBOL(add_wait_queue);
 
+void add_wait_queue_spinning(struct wait_queue_head *wq_head, struct wait_queue_entry *wq_entry)
+{
+	unsigned long flags;
+
+	wq_entry->flags &= ~WQ_FLAG_EXCLUSIVE;
+	spin_lock_irqsave(&wq_head->lock, flags);
+	__add_wait_queue(wq_head, wq_entry);
+	spin_unlock_irqrestore(&wq_head->lock, flags);
+}
+EXPORT_SYMBOL(add_wait_queue_spinning);
+
+
 void add_wait_queue_exclusive(struct wait_queue_head *wq_head, struct wait_queue_entry *wq_entry)
 {
 	unsigned long flags;
@@ -45,6 +57,17 @@ void remove_wait_queue(struct wait_queue_head *wq_head, struct wait_queue_entry 
 	spin_unlock_irqrestore(&wq_head->lock, flags);
 }
 EXPORT_SYMBOL(remove_wait_queue);
+
+void remove_wait_queue_spinning(struct wait_queue_head *wq_head, struct wait_queue_entry *wq_entry)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave_spinning(&wq_head->lock, flags);
+	__remove_wait_queue(wq_head, wq_entry);
+	spin_unlock_irqrestore(&wq_head->lock, flags);
+}
+EXPORT_SYMBOL(remove_wait_queue_spinning);
+
 
 /*
  * Scan threshold to break wait queue walk.
@@ -129,6 +152,28 @@ static void __wake_up_common_lock(struct wait_queue_head *wq_head, unsigned int 
 	}
 }
 
+static void __wake_up_common_lock_spinning(struct wait_queue_head *wq_head, unsigned int mode,
+			int nr_exclusive, int wake_flags, void *key)
+{
+	unsigned long flags;
+	wait_queue_entry_t bookmark;
+
+	bookmark.flags = 0;
+	bookmark.private = NULL;
+	bookmark.func = NULL;
+	INIT_LIST_HEAD(&bookmark.entry);
+
+	spin_lock_irqsave_spinning(&wq_head->lock, flags);
+	nr_exclusive = __wake_up_common(wq_head, mode, nr_exclusive, wake_flags, key, &bookmark);
+	spin_unlock_irqrestore(&wq_head->lock, flags);
+
+	while (bookmark.flags & WQ_FLAG_BOOKMARK) {
+		spin_lock_irqsave_spinning(&wq_head->lock, flags);
+		nr_exclusive = __wake_up_common(wq_head, mode, nr_exclusive,
+						wake_flags, key, &bookmark);
+		spin_unlock_irqrestore(&wq_head->lock, flags);
+	}
+}
 /**
  * __wake_up - wake up threads blocked on a waitqueue.
  * @wq_head: the waitqueue
@@ -145,6 +190,14 @@ void __wake_up(struct wait_queue_head *wq_head, unsigned int mode,
 	__wake_up_common_lock(wq_head, mode, nr_exclusive, 0, key);
 }
 EXPORT_SYMBOL(__wake_up);
+
+void __wake_up_spinning(struct wait_queue_head *wq_head, unsigned int mode,
+			int nr_exclusive, void *key)
+{
+	__wake_up_common_lock_spinning(wq_head, mode, nr_exclusive, 0, key);
+}
+EXPORT_SYMBOL(__wake_up_spinning);
+
 
 /*
  * Same as __wake_up but called with the spinlock in wait_queue_head_t held.
@@ -200,6 +253,21 @@ void __wake_up_sync_key(struct wait_queue_head *wq_head, unsigned int mode,
 }
 EXPORT_SYMBOL_GPL(__wake_up_sync_key);
 
+void __wake_up_sync_key_spinning(struct wait_queue_head *wq_head, unsigned int mode,
+			int nr_exclusive, void *key)
+{
+	int wake_flags = 1; /* XXX WF_SYNC */
+
+	if (unlikely(!wq_head))
+		return;
+
+	if (unlikely(nr_exclusive != 1))
+		wake_flags = 0;
+
+	__wake_up_common_lock_spinning(wq_head, mode, nr_exclusive, wake_flags, key);
+}
+EXPORT_SYMBOL_GPL(__wake_up_sync_key_spinning);
+
 /*
  * __wake_up_sync - see __wake_up_sync_key()
  */
@@ -234,6 +302,21 @@ prepare_to_wait(struct wait_queue_head *wq_head, struct wait_queue_entry *wq_ent
 	spin_unlock_irqrestore(&wq_head->lock, flags);
 }
 EXPORT_SYMBOL(prepare_to_wait);
+
+void
+prepare_to_wait_spinning(struct wait_queue_head *wq_head, struct wait_queue_entry *wq_entry, int state)
+{
+	unsigned long flags;
+
+	wq_entry->flags &= ~WQ_FLAG_EXCLUSIVE;
+	spin_lock_irqsave_spinning(&wq_head->lock, flags);
+	if (list_empty(&wq_entry->entry))
+		__add_wait_queue(wq_head, wq_entry);
+	set_current_state(state);
+	spin_unlock_irqrestore(&wq_head->lock, flags);
+}
+EXPORT_SYMBOL(prepare_to_wait_spinning);
+
 
 void
 prepare_to_wait_exclusive(struct wait_queue_head *wq_head, struct wait_queue_entry *wq_entry, int state)
@@ -369,6 +452,33 @@ void finish_wait(struct wait_queue_head *wq_head, struct wait_queue_entry *wq_en
 	}
 }
 EXPORT_SYMBOL(finish_wait);
+
+void finish_wait_spinning(struct wait_queue_head *wq_head, struct wait_queue_entry *wq_entry)
+{
+	unsigned long flags;
+
+	__set_current_state(TASK_RUNNING);
+	/*
+	 * We can check for list emptiness outside the lock
+	 * IFF:
+	 *  - we use the "careful" check that verifies both
+	 *    the next and prev pointers, so that there cannot
+	 *    be any half-pending updates in progress on other
+	 *    CPU's that we haven't seen yet (and that might
+	 *    still change the stack area.
+	 * and
+	 *  - all other users take the lock (ie we can only
+	 *    have _one_ other CPU that looks at or modifies
+	 *    the list).
+	 */
+	if (!list_empty_careful(&wq_entry->entry)) {
+		spin_lock_irqsave_spinning(&wq_head->lock, flags);
+		list_del_init(&wq_entry->entry);
+		spin_unlock_irqrestore(&wq_head->lock, flags);
+	}
+}
+EXPORT_SYMBOL(finish_wait_spinning);
+
 
 int autoremove_wake_function(struct wait_queue_entry *wq_entry, unsigned mode, int sync, void *key)
 {

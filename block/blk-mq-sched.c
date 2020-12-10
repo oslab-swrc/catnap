@@ -178,7 +178,7 @@ void blk_mq_sched_dispatch_requests(struct blk_mq_hw_ctx *hctx)
 	 * more fair dispatch.
 	 */
 	if (!list_empty_careful(&hctx->dispatch)) {
-		spin_lock(&hctx->lock);
+		spin_lock_spinning(&hctx->lock);
 		if (!list_empty(&hctx->dispatch))
 			list_splice_init(&hctx->dispatch, &rq_list);
 		spin_unlock(&hctx->lock);
@@ -350,7 +350,7 @@ static bool blk_mq_sched_bypass_insert(struct blk_mq_hw_ctx *hctx,
 {
 	/* dispatch flush rq directly */
 	if (rq->rq_flags & RQF_FLUSH_SEQ) {
-		spin_lock(&hctx->lock);
+		spin_lock_spinning(&hctx->lock);
 		list_add(&rq->queuelist, &hctx->dispatch);
 		spin_unlock(&hctx->lock);
 		return true;

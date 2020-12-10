@@ -494,7 +494,7 @@ phys_pmd_init(pmd_t *pmd_page, unsigned long paddr, unsigned long paddr_end,
 
 		if (!pmd_none(*pmd)) {
 			if (!pmd_large(*pmd)) {
-				spin_lock(&init_mm.page_table_lock);
+				spin_lock_spinning(&init_mm.page_table_lock);
 				pte = (pte_t *)pmd_page_vaddr(*pmd);
 				paddr_last = phys_pte_init(pte, paddr,
 							   paddr_end, prot);
@@ -524,7 +524,7 @@ phys_pmd_init(pmd_t *pmd_page, unsigned long paddr, unsigned long paddr_end,
 
 		if (page_size_mask & (1<<PG_LEVEL_2M)) {
 			pages++;
-			spin_lock(&init_mm.page_table_lock);
+			spin_lock_spinning(&init_mm.page_table_lock);
 			set_pte((pte_t *)pmd,
 				pfn_pte((paddr & PMD_MASK) >> PAGE_SHIFT,
 					__pgprot(pgprot_val(prot) | _PAGE_PSE)));
@@ -536,7 +536,7 @@ phys_pmd_init(pmd_t *pmd_page, unsigned long paddr, unsigned long paddr_end,
 		pte = alloc_low_page();
 		paddr_last = phys_pte_init(pte, paddr, paddr_end, new_prot);
 
-		spin_lock(&init_mm.page_table_lock);
+		spin_lock_spinning(&init_mm.page_table_lock);
 		pmd_populate_kernel(&init_mm, pmd, pte);
 		spin_unlock(&init_mm.page_table_lock);
 	}
@@ -610,7 +610,7 @@ phys_pud_init(pud_t *pud_page, unsigned long paddr, unsigned long paddr_end,
 
 		if (page_size_mask & (1<<PG_LEVEL_1G)) {
 			pages++;
-			spin_lock(&init_mm.page_table_lock);
+			spin_lock_spinning(&init_mm.page_table_lock);
 			set_pte((pte_t *)pud,
 				pfn_pte((paddr & PUD_MASK) >> PAGE_SHIFT,
 					PAGE_KERNEL_LARGE));
@@ -623,7 +623,7 @@ phys_pud_init(pud_t *pud_page, unsigned long paddr, unsigned long paddr_end,
 		paddr_last = phys_pmd_init(pmd, paddr, paddr_end,
 					   page_size_mask, prot);
 
-		spin_lock(&init_mm.page_table_lock);
+		spin_lock_spinning(&init_mm.page_table_lock);
 		pud_populate(&init_mm, pud, pmd);
 		spin_unlock(&init_mm.page_table_lock);
 	}
@@ -674,7 +674,7 @@ phys_p4d_init(p4d_t *p4d_page, unsigned long paddr, unsigned long paddr_end,
 		paddr_last = phys_pud_init(pud, paddr, paddr_end,
 					   page_size_mask);
 
-		spin_lock(&init_mm.page_table_lock);
+		spin_lock_spinning(&init_mm.page_table_lock);
 		p4d_populate(&init_mm, p4d, pud);
 		spin_unlock(&init_mm.page_table_lock);
 	}
@@ -718,7 +718,7 @@ kernel_physical_mapping_init(unsigned long paddr_start,
 		paddr_last = phys_p4d_init(p4d, __pa(vaddr), __pa(vaddr_end),
 					   page_size_mask);
 
-		spin_lock(&init_mm.page_table_lock);
+		spin_lock_spinning(&init_mm.page_table_lock);
 		if (pgtable_l5_enabled())
 			pgd_populate(&init_mm, pgd, p4d);
 		else
@@ -847,7 +847,7 @@ static void __meminit free_pte_table(pte_t *pte_start, pmd_t *pmd)
 
 	/* free a pte talbe */
 	free_pagetable(pmd_page(*pmd), 0);
-	spin_lock(&init_mm.page_table_lock);
+	spin_lock_spinning(&init_mm.page_table_lock);
 	pmd_clear(pmd);
 	spin_unlock(&init_mm.page_table_lock);
 }
@@ -865,7 +865,7 @@ static void __meminit free_pmd_table(pmd_t *pmd_start, pud_t *pud)
 
 	/* free a pmd talbe */
 	free_pagetable(pud_page(*pud), 0);
-	spin_lock(&init_mm.page_table_lock);
+	spin_lock_spinning(&init_mm.page_table_lock);
 	pud_clear(pud);
 	spin_unlock(&init_mm.page_table_lock);
 }
@@ -883,7 +883,7 @@ static void __meminit free_pud_table(pud_t *pud_start, p4d_t *p4d)
 
 	/* free a pud talbe */
 	free_pagetable(p4d_page(*p4d), 0);
-	spin_lock(&init_mm.page_table_lock);
+	spin_lock_spinning(&init_mm.page_table_lock);
 	p4d_clear(p4d);
 	spin_unlock(&init_mm.page_table_lock);
 }
@@ -923,7 +923,7 @@ remove_pte_table(pte_t *pte_start, unsigned long addr, unsigned long end,
 			if (!direct)
 				free_pagetable(pte_page(*pte), 0);
 
-			spin_lock(&init_mm.page_table_lock);
+			spin_lock_spinning(&init_mm.page_table_lock);
 			pte_clear(&init_mm, addr, pte);
 			spin_unlock(&init_mm.page_table_lock);
 
@@ -946,7 +946,7 @@ remove_pte_table(pte_t *pte_start, unsigned long addr, unsigned long end,
 			if (!memchr_inv(page_addr, PAGE_INUSE, PAGE_SIZE)) {
 				free_pagetable(pte_page(*pte), 0);
 
-				spin_lock(&init_mm.page_table_lock);
+				spin_lock_spinning(&init_mm.page_table_lock);
 				pte_clear(&init_mm, addr, pte);
 				spin_unlock(&init_mm.page_table_lock);
 			}
@@ -982,7 +982,7 @@ remove_pmd_table(pmd_t *pmd_start, unsigned long addr, unsigned long end,
 					free_hugepage_table(pmd_page(*pmd),
 							    altmap);
 
-				spin_lock(&init_mm.page_table_lock);
+				spin_lock_spinning(&init_mm.page_table_lock);
 				pmd_clear(pmd);
 				spin_unlock(&init_mm.page_table_lock);
 				pages++;
@@ -996,7 +996,7 @@ remove_pmd_table(pmd_t *pmd_start, unsigned long addr, unsigned long end,
 					free_hugepage_table(pmd_page(*pmd),
 							    altmap);
 
-					spin_lock(&init_mm.page_table_lock);
+					spin_lock_spinning(&init_mm.page_table_lock);
 					pmd_clear(pmd);
 					spin_unlock(&init_mm.page_table_lock);
 				}
@@ -1038,7 +1038,7 @@ remove_pud_table(pud_t *pud_start, unsigned long addr, unsigned long end,
 					free_pagetable(pud_page(*pud),
 						       get_order(PUD_SIZE));
 
-				spin_lock(&init_mm.page_table_lock);
+				spin_lock_spinning(&init_mm.page_table_lock);
 				pud_clear(pud);
 				spin_unlock(&init_mm.page_table_lock);
 				pages++;
@@ -1052,7 +1052,7 @@ remove_pud_table(pud_t *pud_start, unsigned long addr, unsigned long end,
 					free_pagetable(pud_page(*pud),
 						       get_order(PUD_SIZE));
 
-					spin_lock(&init_mm.page_table_lock);
+					spin_lock_spinning(&init_mm.page_table_lock);
 					pud_clear(pud);
 					spin_unlock(&init_mm.page_table_lock);
 				}

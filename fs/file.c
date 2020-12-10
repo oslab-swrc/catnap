@@ -160,7 +160,8 @@ static int expand_fdtable(struct files_struct *files, unsigned int nr)
 	if (atomic_read(&files->count) > 1)
 		synchronize_sched();
 
-	spin_lock(&files->file_lock);
+	//spin_lock(&files->file_lock);
+	spin_lock_spinning(&files->file_lock);
 	if (!new_fdt)
 		return -ENOMEM;
 	/*
@@ -212,7 +213,7 @@ repeat:
 		spin_unlock(&files->file_lock);
 		expanded = 1;
 		wait_event(files->resize_wait, !files->resize_in_progress);
-		spin_lock(&files->file_lock);
+		spin_lock_spinning(&files->file_lock);
 		goto repeat;
 	}
 
@@ -294,7 +295,7 @@ struct files_struct *dup_fd(struct files_struct *oldf, int *errorp)
 	new_fdt->full_fds_bits = newf->full_fds_bits_init;
 	new_fdt->fd = &newf->fd_array[0];
 
-	spin_lock(&oldf->file_lock);
+	spin_lock_spinning(&oldf->file_lock);
 	old_fdt = files_fdtable(oldf);
 	open_files = count_open_files(old_fdt);
 
@@ -325,7 +326,7 @@ struct files_struct *dup_fd(struct files_struct *oldf, int *errorp)
 		 * who knows it may have a new bigger fd table. We need
 		 * the latest pointer.
 		 */
-		spin_lock(&oldf->file_lock);
+		spin_lock_spinning(&oldf->file_lock);
 		old_fdt = files_fdtable(oldf);
 		open_files = count_open_files(old_fdt);
 	}
@@ -484,7 +485,7 @@ int __alloc_fd(struct files_struct *files,
 	int error;
 	struct fdtable *fdt;
 
-	spin_lock(&files->file_lock);
+	spin_lock_spinning(&files->file_lock);
 repeat:
 	fdt = files_fdtable(files);
 	fd = start;
@@ -557,7 +558,7 @@ static void __put_unused_fd(struct files_struct *files, unsigned int fd)
 void put_unused_fd(unsigned int fd)
 {
 	struct files_struct *files = current->files;
-	spin_lock(&files->file_lock);
+	spin_lock_spinning(&files->file_lock);
 	__put_unused_fd(files, fd);
 	spin_unlock(&files->file_lock);
 }
@@ -593,7 +594,7 @@ void __fd_install(struct files_struct *files, unsigned int fd,
 
 	if (unlikely(files->resize_in_progress)) {
 		rcu_read_unlock_sched();
-		spin_lock(&files->file_lock);
+		spin_lock_spinning(&files->file_lock);
 		fdt = files_fdtable(files);
 		BUG_ON(fdt->fd[fd] != NULL);
 		rcu_assign_pointer(fdt->fd[fd], file);
@@ -623,7 +624,7 @@ int __close_fd(struct files_struct *files, unsigned fd)
 	struct file *file;
 	struct fdtable *fdt;
 
-	spin_lock(&files->file_lock);
+	spin_lock_spinning(&files->file_lock);
 	fdt = files_fdtable(files);
 	if (fd >= fdt->max_fds)
 		goto out_unlock;
@@ -647,7 +648,7 @@ void do_close_on_exec(struct files_struct *files)
 	struct fdtable *fdt;
 
 	/* exec unshares first */
-	spin_lock(&files->file_lock);
+	spin_lock_spinning(&files->file_lock);
 	for (i = 0; ; i++) {
 		unsigned long set;
 		unsigned fd = i * BITS_PER_LONG;
@@ -670,7 +671,7 @@ void do_close_on_exec(struct files_struct *files)
 			spin_unlock(&files->file_lock);
 			filp_close(file, files);
 			cond_resched();
-			spin_lock(&files->file_lock);
+			spin_lock_spinning(&files->file_lock);
 		}
 
 	}
@@ -785,7 +786,7 @@ void set_close_on_exec(unsigned int fd, int flag)
 {
 	struct files_struct *files = current->files;
 	struct fdtable *fdt;
-	spin_lock(&files->file_lock);
+	spin_lock_spinning(&files->file_lock);
 	fdt = files_fdtable(files);
 	if (flag)
 		__set_close_on_exec(fd, fdt);
@@ -861,7 +862,7 @@ int replace_fd(unsigned fd, struct file *file, unsigned flags)
 	if (fd >= rlimit(RLIMIT_NOFILE))
 		return -EBADF;
 
-	spin_lock(&files->file_lock);
+	spin_lock_spinning(&files->file_lock);
 	err = expand_files(files, fd);
 	if (unlikely(err < 0))
 		goto out_unlock;
@@ -887,7 +888,7 @@ static int ksys_dup3(unsigned int oldfd, unsigned int newfd, int flags)
 	if (newfd >= rlimit(RLIMIT_NOFILE))
 		return -EBADF;
 
-	spin_lock(&files->file_lock);
+	spin_lock_spinning(&files->file_lock);
 	err = expand_files(files, newfd);
 	file = fcheck(oldfd);
 	if (unlikely(!file))
@@ -967,7 +968,7 @@ int iterate_fd(struct files_struct *files, unsigned n,
 	int res = 0;
 	if (!files)
 		return 0;
-	spin_lock(&files->file_lock);
+	spin_lock_spinning(&files->file_lock);
 	for (fdt = files_fdtable(files); n < fdt->max_fds; n++) {
 		struct file *file;
 		file = rcu_dereference_check_fdtable(files, fdt->fd[n]);

@@ -935,7 +935,7 @@ static struct timer_base *lock_timer_base(struct timer_list *timer,
 
 		if (!(tf & TIMER_MIGRATING)) {
 			base = get_timer_base(tf);
-			raw_spin_lock_irqsave(&base->lock, *flags);
+			raw_spin_lock_irqsave_spinning(&base->lock, *flags);
 			if (timer->flags == tf)
 				return base;
 			raw_spin_unlock_irqrestore(&base->lock, *flags);
@@ -1031,7 +1031,7 @@ __mod_timer(struct timer_list *timer, unsigned long expires, unsigned int option
 
 			raw_spin_unlock(&base->lock);
 			base = new_base;
-			raw_spin_lock(&base->lock);
+			raw_spin_lock_spinning(&base->lock);
 			WRITE_ONCE(timer->flags,
 				   (timer->flags & ~TIMER_BASEMASK) | base->cpu);
 			forward_timer_base(base);
@@ -1166,7 +1166,7 @@ void add_timer_on(struct timer_list *timer, int cpu)
 
 		raw_spin_unlock(&base->lock);
 		base = new_base;
-		raw_spin_lock(&base->lock);
+		raw_spin_lock_spinning(&base->lock);
 		WRITE_ONCE(timer->flags,
 			   (timer->flags & ~TIMER_BASEMASK) | cpu);
 	}
@@ -1357,11 +1357,11 @@ static void expire_timers(struct timer_base *base, struct hlist_head *head)
 		if (timer->flags & TIMER_IRQSAFE) {
 			raw_spin_unlock(&base->lock);
 			call_timer_fn(timer, fn);
-			raw_spin_lock(&base->lock);
+			raw_spin_lock_spinning(&base->lock);
 		} else {
 			raw_spin_unlock_irq(&base->lock);
 			call_timer_fn(timer, fn);
-			raw_spin_lock_irq(&base->lock);
+			raw_spin_lock_irq_spinning(&base->lock);
 		}
 	}
 }
@@ -1530,7 +1530,7 @@ u64 get_next_timer_interrupt(unsigned long basej, u64 basem)
 	if (cpu_is_offline(smp_processor_id()))
 		return expires;
 
-	raw_spin_lock(&base->lock);
+	raw_spin_lock_spinning(&base->lock);
 	nextevt = __next_timer_interrupt(base);
 	is_max_delta = (nextevt == base->clk + NEXT_TIMER_MAX_DELTA);
 	base->next_expiry = nextevt;
@@ -1655,7 +1655,7 @@ static inline void __run_timers(struct timer_base *base)
 	if (!time_after_eq(jiffies, base->clk))
 		return;
 
-	raw_spin_lock_irq(&base->lock);
+	raw_spin_lock_irq_spinning(&base->lock);
 
 	/*
 	 * timer_base::must_forward_clk must be cleared before running
@@ -1894,8 +1894,8 @@ int timers_dead_cpu(unsigned int cpu)
 		 * The caller is globally serialized and nobody else
 		 * takes two locks at once, deadlock is not possible.
 		 */
-		raw_spin_lock_irq(&new_base->lock);
-		raw_spin_lock_nested(&old_base->lock, SINGLE_DEPTH_NESTING);
+		raw_spin_lock_irq_spinning(&new_base->lock);
+		raw_spin_lock_nested_spinning(&old_base->lock, SINGLE_DEPTH_NESTING);
 
 		/*
 		 * The current CPUs base clock might be stale. Update it

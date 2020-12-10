@@ -457,7 +457,7 @@ static int __inet_check_established(struct inet_timewait_death_row *death_row,
 	const struct hlist_nulls_node *node;
 	struct inet_timewait_sock *tw = NULL;
 
-	spin_lock(lock);
+	spin_lock_spinning(lock);
 
 	sk_nulls_for_each(sk2, node, &head->chain) {
 		if (sk2->sk_hash != hash)
@@ -529,7 +529,7 @@ bool inet_ehash_insert(struct sock *sk, struct sock *osk)
 	list = &head->chain;
 	lock = inet_ehash_lockp(hashinfo, sk->sk_hash);
 
-	spin_lock(lock);
+	spin_lock_spinning(lock);
 	if (osk) {
 		WARN_ON_ONCE(sk->sk_hash != osk->sk_hash);
 		ret = sk_nulls_del_node_init_rcu(osk);
@@ -639,10 +639,12 @@ void inet_unhash(struct sock *sk)
 	if (sk->sk_state == TCP_LISTEN) {
 		ilb = &hashinfo->listening_hash[inet_sk_listen_hashfn(sk)];
 		lock = &ilb->lock;
+		spin_lock_bh(lock);
 	} else {
 		lock = inet_ehash_lockp(hashinfo, sk->sk_hash);
+		spin_lock_bh_spinning(lock);
 	}
-	spin_lock_bh(lock);
+	//spin_lock_bh(lock);
 	if (sk_unhashed(sk))
 		goto unlock;
 

@@ -1499,7 +1499,7 @@ void rt_add_uncached_list(struct rtable *rt)
 
 	rt->rt_uncached_list = ul;
 
-	spin_lock_bh(&ul->lock);
+	spin_lock_bh_spinning(&ul->lock);
 	list_add_tail(&rt->rt_uncached, &ul->head);
 	spin_unlock_bh(&ul->lock);
 }
@@ -1509,7 +1509,7 @@ void rt_del_uncached_list(struct rtable *rt)
 	if (!list_empty(&rt->rt_uncached)) {
 		struct uncached_list *ul = rt->rt_uncached_list;
 
-		spin_lock_bh(&ul->lock);
+		spin_lock_bh_spinning(&ul->lock);
 		list_del(&rt->rt_uncached);
 		spin_unlock_bh(&ul->lock);
 	}
@@ -1535,7 +1535,7 @@ void rt_flush_dev(struct net_device *dev)
 	for_each_possible_cpu(cpu) {
 		struct uncached_list *ul = &per_cpu(rt_uncached_list, cpu);
 
-		spin_lock_bh(&ul->lock);
+		spin_lock_bh_spinning(&ul->lock);
 		list_for_each_entry(rt, &ul->head, rt_uncached) {
 			if (rt->dst.dev != dev)
 				continue;

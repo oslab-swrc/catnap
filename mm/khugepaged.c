@@ -433,7 +433,8 @@ int __khugepaged_enter(struct mm_struct *mm)
 		return 0;
 	}
 
-	spin_lock(&khugepaged_mm_lock);
+	//spin_lock(&khugepaged_mm_lock);
+	spin_lock_spinning(&khugepaged_mm_lock);
 	insert_to_mm_slots_hash(mm, mm_slot);
 	/*
 	 * Insert just behind the scanning cursor, to let the area settle
@@ -474,7 +475,8 @@ void __khugepaged_exit(struct mm_struct *mm)
 	struct mm_slot *mm_slot;
 	int free = 0;
 
-	spin_lock(&khugepaged_mm_lock);
+	//spin_lock(&khugepaged_mm_lock);
+	spin_lock_spinning(&khugepaged_mm_lock);
 	mm_slot = get_mm_slot(mm);
 	if (mm_slot && khugepaged_scan.mm_slot != mm_slot) {
 		hash_del(&mm_slot->hash);
@@ -1769,7 +1771,8 @@ breakouterloop:
 	up_read(&mm->mmap_sem); /* exit_mmap will destroy ptes after this */
 breakouterloop_mmap_sem:
 
-	spin_lock(&khugepaged_mm_lock);
+	//spin_lock(&khugepaged_mm_lock);
+	spin_lock_spinning(&khugepaged_mm_lock);
 	VM_BUG_ON(khugepaged_scan.mm_slot != mm_slot);
 	/*
 	 * Release the current mm_slot if this mm is about to die, or
@@ -1827,7 +1830,8 @@ static void khugepaged_do_scan(void)
 		if (unlikely(kthread_should_stop() || try_to_freeze()))
 			break;
 
-		spin_lock(&khugepaged_mm_lock);
+		//spin_lock(&khugepaged_mm_lock);
+		spin_lock_spinning(&khugepaged_mm_lock);
 		if (!khugepaged_scan.mm_slot)
 			pass_through_head++;
 		if (khugepaged_has_work() &&
@@ -1881,7 +1885,8 @@ static int khugepaged(void *none)
 		khugepaged_wait_work();
 	}
 
-	spin_lock(&khugepaged_mm_lock);
+	//spin_lock(&khugepaged_mm_lock);
+	spin_lock_spinning(&khugepaged_mm_lock);
 	mm_slot = khugepaged_scan.mm_slot;
 	khugepaged_scan.mm_slot = NULL;
 	if (mm_slot)

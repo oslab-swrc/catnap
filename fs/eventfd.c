@@ -55,7 +55,7 @@ __u64 eventfd_signal(struct eventfd_ctx *ctx, __u64 n)
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(&ctx->wqh.lock, flags);
+	spin_lock_irqsave_spinning(&ctx->wqh.lock, flags);
 	if (ULLONG_MAX - ctx->count < n)
 		n = ULLONG_MAX - ctx->count;
 	ctx->count += n;
@@ -96,7 +96,7 @@ static int eventfd_release(struct inode *inode, struct file *file)
 {
 	struct eventfd_ctx *ctx = file->private_data;
 
-	wake_up_poll(&ctx->wqh, EPOLLHUP);
+	wake_up_poll_spinning(&ctx->wqh, EPOLLHUP);
 	eventfd_ctx_put(ctx);
 	return 0;
 }
@@ -183,7 +183,7 @@ int eventfd_ctx_remove_wait_queue(struct eventfd_ctx *ctx, wait_queue_entry_t *w
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(&ctx->wqh.lock, flags);
+	spin_lock_irqsave_spinning(&ctx->wqh.lock, flags);
 	eventfd_ctx_do_read(ctx, cnt);
 	__remove_wait_queue(&ctx->wqh, wait);
 	if (*cnt != 0 && waitqueue_active(&ctx->wqh))
@@ -205,7 +205,7 @@ static ssize_t eventfd_read(struct file *file, char __user *buf, size_t count,
 	if (count < sizeof(ucnt))
 		return -EINVAL;
 
-	spin_lock_irq(&ctx->wqh.lock);
+	spin_lock_irq_spinning(&ctx->wqh.lock);
 	res = -EAGAIN;
 	if (ctx->count > 0)
 		res = sizeof(ucnt);
@@ -223,7 +223,7 @@ static ssize_t eventfd_read(struct file *file, char __user *buf, size_t count,
 			}
 			spin_unlock_irq(&ctx->wqh.lock);
 			schedule();
-			spin_lock_irq(&ctx->wqh.lock);
+			spin_lock_irq_spinning(&ctx->wqh.lock);
 		}
 		__remove_wait_queue(&ctx->wqh, &wait);
 		__set_current_state(TASK_RUNNING);
@@ -255,7 +255,7 @@ static ssize_t eventfd_write(struct file *file, const char __user *buf, size_t c
 		return -EFAULT;
 	if (ucnt == ULLONG_MAX)
 		return -EINVAL;
-	spin_lock_irq(&ctx->wqh.lock);
+	spin_lock_irq_spinning(&ctx->wqh.lock);
 	res = -EAGAIN;
 	if (ULLONG_MAX - ctx->count > ucnt)
 		res = sizeof(ucnt);
@@ -273,7 +273,7 @@ static ssize_t eventfd_write(struct file *file, const char __user *buf, size_t c
 			}
 			spin_unlock_irq(&ctx->wqh.lock);
 			schedule();
-			spin_lock_irq(&ctx->wqh.lock);
+			spin_lock_irq_spinning(&ctx->wqh.lock);
 		}
 		__remove_wait_queue(&ctx->wqh, &wait);
 		__set_current_state(TASK_RUNNING);
@@ -293,7 +293,7 @@ static void eventfd_show_fdinfo(struct seq_file *m, struct file *f)
 {
 	struct eventfd_ctx *ctx = f->private_data;
 
-	spin_lock_irq(&ctx->wqh.lock);
+	spin_lock_irq_spinning(&ctx->wqh.lock);
 	seq_printf(m, "eventfd-count: %16llx\n",
 		   (unsigned long long)ctx->count);
 	spin_unlock_irq(&ctx->wqh.lock);

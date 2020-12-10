@@ -2,7 +2,7 @@
 VERSION = 4
 PATCHLEVEL = 19
 SUBLEVEL = 44
-EXTRAVERSION = -lockstat
+EXTRAVERSION = -selective
 NAME = "People's Front"
 
 # *DOCUMENTATION*

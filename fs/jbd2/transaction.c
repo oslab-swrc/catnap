@@ -665,7 +665,7 @@ int jbd2__journal_restart(handle_t *handle, int nblocks, gfp_t gfp_mask)
 				     handle->h_rsv_handle->h_buffer_credits);
 	}
 	if (atomic_dec_and_test(&transaction->t_updates))
-		wake_up(&journal->j_wait_updates);
+		wake_up_spinning(&journal->j_wait_updates);
 	tid = transaction->t_tid;
 	spin_unlock(&transaction->t_handle_lock);
 	handle->h_transaction = NULL;
@@ -732,17 +732,17 @@ void jbd2_journal_lock_updates(journal_t *journal)
 			break;
 
 		spin_lock(&transaction->t_handle_lock);
-		prepare_to_wait(&journal->j_wait_updates, &wait,
+		prepare_to_wait_spinning(&journal->j_wait_updates, &wait,
 				TASK_UNINTERRUPTIBLE);
 		if (!atomic_read(&transaction->t_updates)) {
 			spin_unlock(&transaction->t_handle_lock);
-			finish_wait(&journal->j_wait_updates, &wait);
+			finish_wait_spinning(&journal->j_wait_updates, &wait);
 			break;
 		}
 		spin_unlock(&transaction->t_handle_lock);
 		write_unlock(&journal->j_state_lock);
 		schedule();
-		finish_wait(&journal->j_wait_updates, &wait);
+		finish_wait_spinning(&journal->j_wait_updates, &wait);
 		write_lock(&journal->j_state_lock);
 	}
 	write_unlock(&journal->j_state_lock);
@@ -1773,7 +1773,7 @@ int jbd2_journal_stop(handle_t *handle)
 	 */
 	tid = transaction->t_tid;
 	if (atomic_dec_and_test(&transaction->t_updates)) {
-		wake_up(&journal->j_wait_updates);
+		wake_up_spinning(&journal->j_wait_updates);
 		if (journal->j_barrier_count)
 			wake_up(&journal->j_wait_transaction_locked);
 	}

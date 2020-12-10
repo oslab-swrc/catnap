@@ -121,7 +121,8 @@ void frontswap_register_ops(struct frontswap_ops *ops)
 	bitmap_zero(a, MAX_SWAPFILES);
 	bitmap_zero(b, MAX_SWAPFILES);
 
-	spin_lock(&swap_lock);
+	//spin_lock(&swap_lock);
+	spin_lock_spinning(&swap_lock);
 	plist_for_each_entry(si, &swap_active_head, list) {
 		if (!WARN_ON(!si->frontswap_map))
 			set_bit(si->type, a);
@@ -143,7 +144,8 @@ void frontswap_register_ops(struct frontswap_ops *ops)
 
 	static_branch_inc(&frontswap_enabled_key);
 
-	spin_lock(&swap_lock);
+	//spin_lock(&swap_lock);
+	spin_lock_spinning(&swap_lock);
 	plist_for_each_entry(si, &swap_active_head, list) {
 		if (si->frontswap_map)
 			set_bit(si->type, b);
@@ -454,7 +456,8 @@ void frontswap_shrink(unsigned long target_pages)
 	 * lengthy try_to_unuse, but swap_list may change
 	 * so restart scan from swap_active_head each time
 	 */
-	spin_lock(&swap_lock);
+	//spin_lock(&swap_lock);
+	spin_lock_spinning(&swap_lock);
 	ret = __frontswap_shrink(target_pages, &pages_to_unuse, &type);
 	spin_unlock(&swap_lock);
 	if (ret == 0)
@@ -472,7 +475,8 @@ unsigned long frontswap_curr_pages(void)
 {
 	unsigned long totalpages = 0;
 
-	spin_lock(&swap_lock);
+	//spin_lock(&swap_lock);
+	spin_lock_spinning(&swap_lock);
 	totalpages = __frontswap_curr_pages();
 	spin_unlock(&swap_lock);
 

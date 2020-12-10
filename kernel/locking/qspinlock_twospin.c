@@ -76,20 +76,22 @@ pv_queue:
 		WRITE_ONCE(prev->next, node);
 		
 		pv_wait_node(node, prev);
-		
-		if (old & _Q_NWAITER_MASK) {
-			arch_mcs_spin_lock_contended_mwait(&node->locked, CATNAP_TWOSPIN_TARGET_CSTATE);
-		} else {
-			WRITE_ONCE(lock->pending, 0x10);
-			arch_mcs_spin_lock_contended(&node->locked);
-		}
-		
+
+		if ( READ_ONCE(prev->locked) )
+			goto second;
+
+		arch_mcs_spin_lock_contended_mwait(&node->locked, CATNAP_TWOSPIN_TARGET_CSTATE);
+second:
+	
+		arch_mcs_spin_lock_contended(&node->head);
+
+head:
 		next = READ_ONCE(node->next);
-		if (next) {
-			prefetchw(next);
-		} else {
-			WRITE_ONCE(lock->pending, 0);
-		}
+		if (next)
+			//prefetchw(next);
+			WRITE_ONCE(next->second, 1);
+	}else {
+		WRITE_ONCE(node->second, 1);
 	}
 	
 	if ((val = pv_wait_head_or_lock(lock, node)))
@@ -108,7 +110,7 @@ locked:
 	if (!next)
 		next = smp_cond_load_relaxed(&node->next, (VAL));
 	
-	arch_mcs_spin_unlock_contended(&next->locked);
+	arch_mcs_spin_unlock_contended(&next->head);
 	pv_kick_node(lock, next);
 	
 release:

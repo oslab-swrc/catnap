@@ -138,7 +138,7 @@ void rt6_uncached_list_add(struct rt6_info *rt)
 
 	rt->rt6i_uncached_list = ul;
 
-	spin_lock_bh(&ul->lock);
+	spin_lock_bh_spinning(&ul->lock);
 	list_add_tail(&rt->rt6i_uncached, &ul->head);
 	spin_unlock_bh(&ul->lock);
 }
@@ -149,7 +149,7 @@ void rt6_uncached_list_del(struct rt6_info *rt)
 		struct uncached_list *ul = rt->rt6i_uncached_list;
 		struct net *net = dev_net(rt->dst.dev);
 
-		spin_lock_bh(&ul->lock);
+		spin_lock_bh_spinning(&ul->lock);
 		list_del(&rt->rt6i_uncached);
 		atomic_dec(&net->ipv6.rt6_stats->fib_rt_uncache);
 		spin_unlock_bh(&ul->lock);
@@ -168,7 +168,7 @@ static void rt6_uncached_list_flush_dev(struct net *net, struct net_device *dev)
 		struct uncached_list *ul = per_cpu_ptr(&rt6_uncached_list, cpu);
 		struct rt6_info *rt;
 
-		spin_lock_bh(&ul->lock);
+		spin_lock_bh_spinning(&ul->lock);
 		list_for_each_entry(rt, &ul->head, rt6i_uncached) {
 			struct inet6_dev *rt_idev = rt->rt6i_idev;
 			struct net_device *rt_dev = rt->dst.dev;

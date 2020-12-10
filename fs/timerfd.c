@@ -63,7 +63,7 @@ static void timerfd_triggered(struct timerfd_ctx *ctx)
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(&ctx->wqh.lock, flags);
+	spin_lock_irqsave_spinning(&ctx->wqh.lock, flags);
 	ctx->expired = 1;
 	ctx->ticks++;
 	wake_up_locked_poll(&ctx->wqh, EPOLLIN);
@@ -103,7 +103,7 @@ void timerfd_clock_was_set(void)
 	list_for_each_entry_rcu(ctx, &cancel_list, clist) {
 		if (!ctx->might_cancel)
 			continue;
-		spin_lock_irqsave(&ctx->wqh.lock, flags);
+		spin_lock_irqsave_spinning(&ctx->wqh.lock, flags);
 		if (ctx->moffs != moffs) {
 			ctx->moffs = KTIME_MAX;
 			ctx->ticks++;
@@ -235,7 +235,7 @@ static __poll_t timerfd_poll(struct file *file, poll_table *wait)
 
 	poll_wait(file, &ctx->wqh, wait);
 
-	spin_lock_irqsave(&ctx->wqh.lock, flags);
+	spin_lock_irqsave_spinning(&ctx->wqh.lock, flags);
 	if (ctx->ticks)
 		events |= EPOLLIN;
 	spin_unlock_irqrestore(&ctx->wqh.lock, flags);
@@ -252,7 +252,7 @@ static ssize_t timerfd_read(struct file *file, char __user *buf, size_t count,
 
 	if (count < sizeof(ticks))
 		return -EINVAL;
-	spin_lock_irq(&ctx->wqh.lock);
+	spin_lock_irq_spinning(&ctx->wqh.lock);
 	if (file->f_flags & O_NONBLOCK)
 		res = -EAGAIN;
 	else
@@ -304,7 +304,7 @@ static void timerfd_show(struct seq_file *m, struct file *file)
 	struct timerfd_ctx *ctx = file->private_data;
 	struct itimerspec t;
 
-	spin_lock_irq(&ctx->wqh.lock);
+	spin_lock_irq_spinning(&ctx->wqh.lock);
 	t.it_value = ktime_to_timespec(timerfd_get_remaining(ctx));
 	t.it_interval = ktime_to_timespec(ctx->tintv);
 	spin_unlock_irq(&ctx->wqh.lock);
@@ -342,7 +342,7 @@ static long timerfd_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 		if (!ticks)
 			return -EINVAL;
 
-		spin_lock_irq(&ctx->wqh.lock);
+		spin_lock_irq_spinning(&ctx->wqh.lock);
 		if (!timerfd_canceled(ctx)) {
 			ctx->ticks = ticks;
 			wake_up_locked_poll(&ctx->wqh, EPOLLIN);
@@ -461,7 +461,7 @@ static int do_timerfd_settime(int ufd, int flags,
 	 * it to the new values.
 	 */
 	for (;;) {
-		spin_lock_irq(&ctx->wqh.lock);
+		spin_lock_irq_spinning(&ctx->wqh.lock);
 
 		if (isalarm(ctx)) {
 			if (alarm_try_to_cancel(&ctx->t.alarm) >= 0)
@@ -509,7 +509,7 @@ static int do_timerfd_gettime(int ufd, struct itimerspec64 *t)
 		return ret;
 	ctx = f.file->private_data;
 
-	spin_lock_irq(&ctx->wqh.lock);
+	spin_lock_irq_spinning(&ctx->wqh.lock);
 	if (ctx->expired && ctx->tintv) {
 		ctx->expired = 0;
 

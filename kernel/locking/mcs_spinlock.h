@@ -17,8 +17,14 @@
 
 struct mcs_spinlock {
 	struct mcs_spinlock *next;
-	int locked; /* 1 if lock acquired */
-	int count;  /* nesting count, see qspinlock.c */
+	union {
+		u32 locked; /* 1 if lock acquired */
+		struct {
+			u16 head;
+			u16 second;
+		};
+	};
+	s32 count;  /* nesting count, see qspinlock.c */
 };
 
 #ifndef arch_mcs_spin_lock_contended

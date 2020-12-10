@@ -284,7 +284,7 @@ static __always_inline u32  __pv_wait_head_or_lock(struct qspinlock *lock,
 
 #include "qspinlock_onespin.c"
 #include "qspinlock_twospin.c"
-#include "qspinlock_other.c"
+//#include "qspinlock_other.c"
 
 #endif /* _GEN_PV_LOCK_SLOWPATH */
 

@@ -259,14 +259,16 @@ static void __unix_insert_socket(struct hlist_head *list, struct sock *sk)
 
 static inline void unix_remove_socket(struct sock *sk)
 {
-	spin_lock(&unix_table_lock);
+	//spin_lock(&unix_table_lock);
+	spin_lock_spinning(&unix_table_lock);
 	__unix_remove_socket(sk);
 	spin_unlock(&unix_table_lock);
 }
 
 static inline void unix_insert_socket(struct hlist_head *list, struct sock *sk)
 {
-	spin_lock(&unix_table_lock);
+	//spin_lock(&unix_table_lock);
+	spin_lock_spinning(&unix_table_lock);
 	__unix_insert_socket(list, sk);
 	spin_unlock(&unix_table_lock);
 }
@@ -299,7 +301,8 @@ static inline struct sock *unix_find_socket_byname(struct net *net,
 {
 	struct sock *s;
 
-	spin_lock(&unix_table_lock);
+	//spin_lock(&unix_table_lock);
+	spin_lock_spinning(&unix_table_lock);
 	s = __unix_find_socket_byname(net, sunname, len, type, hash);
 	if (s)
 		sock_hold(s);
@@ -311,7 +314,8 @@ static struct sock *unix_find_socket_byinode(struct inode *i)
 {
 	struct sock *s;
 
-	spin_lock(&unix_table_lock);
+	//spin_lock(&unix_table_lock);
+	spin_lock_spinning(&unix_table_lock);
 	sk_for_each(s,
 		    &unix_socket_table[i->i_ino & (UNIX_HASH_SIZE - 1)]) {
 		struct dentry *dentry = unix_sk(s)->path.dentry;
@@ -866,7 +870,8 @@ retry:
 	addr->len = sprintf(addr->name->sun_path+1, "%05x", ordernum) + 1 + sizeof(short);
 	addr->hash = unix_hash_fold(csum_partial(addr->name, addr->len, 0));
 
-	spin_lock(&unix_table_lock);
+	//spin_lock(&unix_table_lock);
+	spin_lock_spinning(&unix_table_lock);
 	ordernum = (ordernum+1)&0xFFFFF;
 
 	if (__unix_find_socket_byname(net, addr->name, addr->len, sock->type,
@@ -1041,11 +1046,12 @@ static int unix_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 	if (sun_path[0]) {
 		addr->hash = UNIX_HASH_SIZE;
 		hash = d_backing_inode(path.dentry)->i_ino & (UNIX_HASH_SIZE - 1);
-		spin_lock(&unix_table_lock);
+		//spin_lock(&unix_table_lock);
+		spin_lock_spinning(&unix_table_lock);
 		u->path = path;
 		list = &unix_socket_table[hash];
 	} else {
-		spin_lock(&unix_table_lock);
+		spin_lock_spinning(&unix_table_lock);
 		err = -EADDRINUSE;
 		if (__unix_find_socket_byname(net, sunaddr, addr_len,
 					      sk->sk_type, hash)) {
@@ -2792,7 +2798,7 @@ next_bucket:
 static void *unix_seq_start(struct seq_file *seq, loff_t *pos)
 	__acquires(unix_table_lock)
 {
-	spin_lock(&unix_table_lock);
+	spin_lock_spinning(&unix_table_lock);
 
 	if (!*pos)
 		return SEQ_START_TOKEN;

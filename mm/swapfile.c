@@ -1679,7 +1679,8 @@ int swap_type_of(dev_t device, sector_t offset, struct block_device **bdev_p)
 	if (device)
 		bdev = bdget(device);
 
-	spin_lock(&swap_lock);
+	//spin_lock(&swap_lock);
+	spin_lock_spinning(&swap_lock);
 	for (type = 0; type < nr_swapfiles; type++) {
 		struct swap_info_struct *sis = swap_info[type];
 
@@ -1737,7 +1738,8 @@ unsigned int count_swap_pages(int type, int free)
 {
 	unsigned int n = 0;
 
-	spin_lock(&swap_lock);
+	//spin_lock(&swap_lock);
+	spin_lock_spinning(&swap_lock);
 	if ((unsigned int)type < nr_swapfiles) {
 		struct swap_info_struct *sis = swap_info[type];
 
@@ -2498,7 +2500,8 @@ static void enable_swap_info(struct swap_info_struct *p, int prio,
 				unsigned long *frontswap_map)
 {
 	frontswap_init(p->type, frontswap_map);
-	spin_lock(&swap_lock);
+	//spin_lock(&swap_lock);
+	spin_lock_spinning(&swap_lock);
 	spin_lock(&p->lock);
 	 _enable_swap_info(p, prio, swap_map, cluster_info);
 	spin_unlock(&p->lock);
@@ -2507,7 +2510,8 @@ static void enable_swap_info(struct swap_info_struct *p, int prio,
 
 static void reinsert_swap_info(struct swap_info_struct *p)
 {
-	spin_lock(&swap_lock);
+	//spin_lock(&swap_lock);
+	spin_lock_spinning(&swap_lock);
 	spin_lock(&p->lock);
 	_enable_swap_info(p, p->prio, p->swap_map, p->cluster_info);
 	spin_unlock(&p->lock);
@@ -2518,7 +2522,8 @@ bool has_usable_swap(void)
 {
 	bool ret = true;
 
-	spin_lock(&swap_lock);
+	//spin_lock(&swap_lock);
+	spin_lock_spinning(&swap_lock);
 	if (plist_head_empty(&swap_active_head))
 		ret = false;
 	spin_unlock(&swap_lock);
@@ -2553,7 +2558,8 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 		goto out;
 
 	mapping = victim->f_mapping;
-	spin_lock(&swap_lock);
+	//spin_lock(&swap_lock);
+	spin_lock_spinning(&swap_lock);
 	plist_for_each_entry(p, &swap_active_head, list) {
 		if (p->flags & SWP_WRITEOK) {
 			if (p->swap_file->f_mapping == mapping) {
@@ -2622,7 +2628,8 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 		atomic_dec(&nr_rotate_swap);
 
 	mutex_lock(&swapon_mutex);
-	spin_lock(&swap_lock);
+	//spin_lock(&swap_lock);
+	spin_lock_spinning(&swap_lock);
 	spin_lock(&p->lock);
 	drain_mmlist();
 
@@ -2632,7 +2639,8 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 		spin_unlock(&p->lock);
 		spin_unlock(&swap_lock);
 		schedule_timeout_uninterruptible(1);
-		spin_lock(&swap_lock);
+		//spin_lock(&swap_lock);
+		spin_lock_spinning(&swap_lock);
 		spin_lock(&p->lock);
 	}
 
@@ -2676,7 +2684,8 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 	 * can reuse this swap_info in alloc_swap_info() safely.  It is ok to
 	 * not hold p->lock after we cleared its SWP_WRITEOK.
 	 */
-	spin_lock(&swap_lock);
+	//spin_lock(&swap_lock);
+	spin_lock_spinning(&swap_lock);
 	p->flags = 0;
 	spin_unlock(&swap_lock);
 
@@ -2833,7 +2842,8 @@ static struct swap_info_struct *alloc_swap_info(void)
 	if (!p)
 		return ERR_PTR(-ENOMEM);
 
-	spin_lock(&swap_lock);
+	//spin_lock(&swap_lock);
+	spin_lock_spinning(&swap_lock);
 	for (type = 0; type < nr_swapfiles; type++) {
 		if (!(swap_info[type]->flags & SWP_USED))
 			break;
@@ -3310,7 +3320,8 @@ bad_swap:
 	}
 	destroy_swap_extents(p);
 	swap_cgroup_swapoff(p->type);
-	spin_lock(&swap_lock);
+	//spin_lock(&swap_lock);
+	spin_lock_spinning(&swap_lock);
 	p->swap_file = NULL;
 	p->flags = 0;
 	spin_unlock(&swap_lock);
@@ -3345,7 +3356,8 @@ void si_swapinfo(struct sysinfo *val)
 	unsigned int type;
 	unsigned long nr_to_be_unused = 0;
 
-	spin_lock(&swap_lock);
+	//spin_lock(&swap_lock);
+	spin_lock_spinning(&swap_lock);
 	for (type = 0; type < nr_swapfiles; type++) {
 		struct swap_info_struct *si = swap_info[type];
 

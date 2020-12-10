@@ -303,7 +303,7 @@ static void __put_super(struct super_block *s)
  */
 static void put_super(struct super_block *sb)
 {
-	spin_lock(&sb_lock);
+	spin_lock_spinning(&sb_lock);
 	__put_super(sb);
 	spin_unlock(&sb_lock);
 }
@@ -461,7 +461,7 @@ void generic_shutdown_super(struct super_block *sb)
 			   sb->s_id);
 		}
 	}
-	spin_lock(&sb_lock);
+	spin_lock_spinning(&sb_lock);
 	/* should be initialized for __put_super_and_need_restart() */
 	hlist_del_init(&sb->s_instances);
 	spin_unlock(&sb_lock);
@@ -498,7 +498,7 @@ struct super_block *sget_userns(struct file_system_type *type,
 	    !capable(CAP_SYS_ADMIN))
 		return ERR_PTR(-EPERM);
 retry:
-	spin_lock(&sb_lock);
+	spin_lock_spinning(&sb_lock);
 	if (test) {
 		hlist_for_each_entry(old, &type->fs_supers, s_instances) {
 			if (!test(old, data))
@@ -591,7 +591,7 @@ static void __iterate_supers(void (*f)(struct super_block *))
 {
 	struct super_block *sb, *p = NULL;
 
-	spin_lock(&sb_lock);
+	spin_lock_spinning(&sb_lock);
 	list_for_each_entry(sb, &super_blocks, s_list) {
 		if (hlist_unhashed(&sb->s_instances))
 			continue;
@@ -600,7 +600,7 @@ static void __iterate_supers(void (*f)(struct super_block *))
 
 		f(sb);
 
-		spin_lock(&sb_lock);
+		spin_lock_spinning(&sb_lock);
 		if (p)
 			__put_super(p);
 		p = sb;
@@ -621,7 +621,7 @@ void iterate_supers(void (*f)(struct super_block *, void *), void *arg)
 {
 	struct super_block *sb, *p = NULL;
 
-	spin_lock(&sb_lock);
+	spin_lock_spinning(&sb_lock);
 	list_for_each_entry(sb, &super_blocks, s_list) {
 		if (hlist_unhashed(&sb->s_instances))
 			continue;
@@ -633,7 +633,7 @@ void iterate_supers(void (*f)(struct super_block *, void *), void *arg)
 			f(sb, arg);
 		up_read(&sb->s_umount);
 
-		spin_lock(&sb_lock);
+		spin_lock_spinning(&sb_lock);
 		if (p)
 			__put_super(p);
 		p = sb;
@@ -657,7 +657,7 @@ void iterate_supers_type(struct file_system_type *type,
 {
 	struct super_block *sb, *p = NULL;
 
-	spin_lock(&sb_lock);
+	spin_lock_spinning(&sb_lock);
 	hlist_for_each_entry(sb, &type->fs_supers, s_instances) {
 		sb->s_count++;
 		spin_unlock(&sb_lock);
@@ -667,7 +667,7 @@ void iterate_supers_type(struct file_system_type *type,
 			f(sb, arg);
 		up_read(&sb->s_umount);
 
-		spin_lock(&sb_lock);
+		spin_lock_spinning(&sb_lock);
 		if (p)
 			__put_super(p);
 		p = sb;
@@ -686,7 +686,7 @@ static struct super_block *__get_super(struct block_device *bdev, bool excl)
 	if (!bdev)
 		return NULL;
 
-	spin_lock(&sb_lock);
+	spin_lock_spinning(&sb_lock);
 rescan:
 	list_for_each_entry(sb, &super_blocks, s_list) {
 		if (hlist_unhashed(&sb->s_instances))
@@ -706,7 +706,7 @@ rescan:
 			else
 				up_write(&sb->s_umount);
 			/* nope, got unmounted */
-			spin_lock(&sb_lock);
+			spin_lock_spinning(&sb_lock);
 			__put_super(sb);
 			goto rescan;
 		}
@@ -791,7 +791,7 @@ struct super_block *get_active_super(struct block_device *bdev)
 		return NULL;
 
 restart:
-	spin_lock(&sb_lock);
+	spin_lock_spinning(&sb_lock);
 	list_for_each_entry(sb, &super_blocks, s_list) {
 		if (hlist_unhashed(&sb->s_instances))
 			continue;
@@ -810,7 +810,7 @@ struct super_block *user_get_super(dev_t dev)
 {
 	struct super_block *sb;
 
-	spin_lock(&sb_lock);
+	spin_lock_spinning(&sb_lock);
 rescan:
 	list_for_each_entry(sb, &super_blocks, s_list) {
 		if (hlist_unhashed(&sb->s_instances))
@@ -824,7 +824,7 @@ rescan:
 				return sb;
 			up_read(&sb->s_umount);
 			/* nope, got unmounted */
-			spin_lock(&sb_lock);
+			spin_lock_spinning(&sb_lock);
 			__put_super(sb);
 			goto rescan;
 		}

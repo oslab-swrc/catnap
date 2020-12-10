@@ -131,7 +131,7 @@ bool list_lru_add(struct list_lru *lru, struct list_head *item)
 	struct mem_cgroup *memcg;
 	struct list_lru_one *l;
 
-	spin_lock(&nlru->lock);
+	spin_lock_spinning(&nlru->lock);
 	if (list_empty(item)) {
 		l = list_lru_from_kmem(nlru, item, &memcg);
 		list_add_tail(item, &l->list);
@@ -154,7 +154,7 @@ bool list_lru_del(struct list_lru *lru, struct list_head *item)
 	struct list_lru_node *nlru = &lru->node[nid];
 	struct list_lru_one *l;
 
-	spin_lock(&nlru->lock);
+	spin_lock_spinning(&nlru->lock);
 	if (!list_empty(item)) {
 		l = list_lru_from_kmem(nlru, item, NULL);
 		list_del_init(item);
@@ -274,7 +274,7 @@ list_lru_walk_one(struct list_lru *lru, int nid, struct mem_cgroup *memcg,
 	struct list_lru_node *nlru = &lru->node[nid];
 	unsigned long ret;
 
-	spin_lock(&nlru->lock);
+	spin_lock_spinning(&nlru->lock);
 	ret = __list_lru_walk_one(nlru, memcg_cache_id(memcg), isolate, cb_arg,
 				  nr_to_walk);
 	spin_unlock(&nlru->lock);
@@ -290,7 +290,7 @@ list_lru_walk_one_irq(struct list_lru *lru, int nid, struct mem_cgroup *memcg,
 	struct list_lru_node *nlru = &lru->node[nid];
 	unsigned long ret;
 
-	spin_lock_irq(&nlru->lock);
+	spin_lock_irq_spinning(&nlru->lock);
 	ret = __list_lru_walk_one(nlru, memcg_cache_id(memcg), isolate, cb_arg,
 				  nr_to_walk);
 	spin_unlock_irq(&nlru->lock);
@@ -310,7 +310,7 @@ unsigned long list_lru_walk_node(struct list_lru *lru, int nid,
 		for_each_memcg_cache_index(memcg_idx) {
 			struct list_lru_node *nlru = &lru->node[nid];
 
-			spin_lock(&nlru->lock);
+			spin_lock_spinning(&nlru->lock);
 			isolated += __list_lru_walk_one(nlru, memcg_idx,
 							isolate, cb_arg,
 							nr_to_walk);
@@ -427,7 +427,7 @@ static int memcg_update_list_lru_node(struct list_lru_node *nlru,
 	 * Since list_lru_{add,del} may be called under an IRQ-safe lock,
 	 * we have to use IRQ-safe primitives here to avoid deadlock.
 	 */
-	spin_lock_irq(&nlru->lock);
+	spin_lock_irq_spinning(&nlru->lock);
 	rcu_assign_pointer(nlru->memcg_lrus, new);
 	spin_unlock_irq(&nlru->lock);
 
@@ -550,7 +550,7 @@ static void memcg_drain_list_lru_node(struct list_lru *lru, int nid,
 	 * Since list_lru_{add,del} may be called under an IRQ-safe lock,
 	 * we have to use IRQ-safe primitives here to avoid deadlock.
 	 */
-	spin_lock_irq(&nlru->lock);
+	spin_lock_irq_spinning(&nlru->lock);
 
 	src = list_lru_from_memcg_idx(nlru, src_idx);
 	dst = list_lru_from_memcg_idx(nlru, dst_idx);

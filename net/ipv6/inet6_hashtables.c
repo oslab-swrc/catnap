@@ -265,7 +265,7 @@ static int __inet6_check_established(struct inet_timewait_death_row *death_row,
 	const struct hlist_nulls_node *node;
 	struct inet_timewait_sock *tw = NULL;
 
-	spin_lock(lock);
+	spin_lock_spinning(lock);
 
 	sk_nulls_for_each(sk2, node, &head->chain) {
 		if (sk2->sk_hash != hash)

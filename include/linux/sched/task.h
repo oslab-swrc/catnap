@@ -142,7 +142,7 @@ static inline struct vm_struct *task_stack_vm_area(const struct task_struct *t)
  */
 static inline void task_lock(struct task_struct *p)
 {
-	spin_lock(&p->alloc_lock);
+	spin_lock_spinning(&p->alloc_lock);
 }
 
 static inline void task_unlock(struct task_struct *p)

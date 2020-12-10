@@ -384,7 +384,7 @@ static void *hctx_dispatch_start(struct seq_file *m, loff_t *pos)
 {
 	struct blk_mq_hw_ctx *hctx = m->private;
 
-	spin_lock(&hctx->lock);
+	spin_lock_spinning(&hctx->lock);
 	return seq_list_start(&hctx->dispatch, *pos);
 }
 

@@ -46,7 +46,7 @@ static void inet_twsk_kill(struct inet_timewait_sock *tw)
 	spinlock_t *lock = inet_ehash_lockp(hashinfo, tw->tw_hash);
 	struct inet_bind_hashbucket *bhead;
 
-	spin_lock(lock);
+	spin_lock_spinning(lock);
 	sk_nulls_del_node_init_rcu((struct sock *)tw);
 	spin_unlock(lock);
 
@@ -117,7 +117,7 @@ void inet_twsk_hashdance(struct inet_timewait_sock *tw, struct sock *sk,
 	inet_twsk_add_bind_node(tw, &tw->tw_tb->owners);
 	spin_unlock(&bhead->lock);
 
-	spin_lock(lock);
+	spin_lock_spinning(lock);
 
 	inet_twsk_add_node_rcu(tw, &ehead->chain);
 

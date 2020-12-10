@@ -2091,7 +2091,7 @@ static void *established_get_first(struct seq_file *seq)
 		if (empty_bucket(st))
 			continue;
 
-		spin_lock_bh(lock);
+		spin_lock_bh_spinning(lock);
 		sk_nulls_for_each(sk, node, &tcp_hashinfo.ehash[st->bucket].chain) {
 			if (sk->sk_family != afinfo->family ||
 			    !net_eq(sock_net(sk), net)) {

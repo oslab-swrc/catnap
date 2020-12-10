@@ -655,7 +655,7 @@ static bool reqsk_queue_unlink(struct request_sock_queue *queue,
 	if (sk_hashed(req_to_sk(req))) {
 		spinlock_t *lock = inet_ehash_lockp(hashinfo, req->rsk_hash);
 
-		spin_lock(lock);
+		spin_lock_spinning(lock);
 		found = __sk_nulls_del_node_init_rcu(req_to_sk(req));
 		spin_unlock(lock);
 	}

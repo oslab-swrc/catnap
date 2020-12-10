@@ -243,7 +243,8 @@ static int shmem_reserve_inode(struct super_block *sb)
 {
 	struct shmem_sb_info *sbinfo = SHMEM_SB(sb);
 	if (sbinfo->max_inodes) {
-		spin_lock(&sbinfo->stat_lock);
+		//spin_lock(&sbinfo->stat_lock);
+		spin_lock_spinning(&sbinfo->stat_lock);
 		if (!sbinfo->free_inodes) {
 			spin_unlock(&sbinfo->stat_lock);
 			return -ENOSPC;
@@ -258,7 +259,8 @@ static void shmem_free_inode(struct super_block *sb)
 {
 	struct shmem_sb_info *sbinfo = SHMEM_SB(sb);
 	if (sbinfo->max_inodes) {
-		spin_lock(&sbinfo->stat_lock);
+		//spin_lock(&sbinfo->stat_lock);
+		spin_lock_spinning(&sbinfo->stat_lock);
 		sbinfo->free_inodes++;
 		spin_unlock(&sbinfo->stat_lock);
 	}
@@ -456,7 +458,8 @@ static unsigned long shmem_unused_huge_shrink(struct shmem_sb_info *sbinfo,
 	if (list_empty(&sbinfo->shrinklist))
 		return SHRINK_STOP;
 
-	spin_lock(&sbinfo->shrinklist_lock);
+	//spin_lock(&sbinfo->shrinklist_lock);
+	spin_lock_spinning(&sbinfo->shrinklist_lock);
 	list_for_each_safe(pos, next, &sbinfo->shrinklist) {
 		info = list_entry(pos, struct shmem_inode_info, shrinklist);
 
@@ -540,7 +543,8 @@ leave:
 		iput(inode);
 	}
 
-	spin_lock(&sbinfo->shrinklist_lock);
+	//spin_lock(&sbinfo->shrinklist_lock);
+	spin_lock_spinning(&sbinfo->shrinklist_lock);
 	list_splice_tail(&list, &sbinfo->shrinklist);
 	sbinfo->shrinklist_len -= removed;
 	spin_unlock(&sbinfo->shrinklist_lock);
@@ -1063,7 +1067,8 @@ static int shmem_setattr(struct dentry *dentry, struct iattr *attr)
 			 * to shrink under memory pressure.
 			 */
 			if (IS_ENABLED(CONFIG_TRANSPARENT_HUGE_PAGECACHE)) {
-				spin_lock(&sbinfo->shrinklist_lock);
+				//spin_lock(&sbinfo->shrinklist_lock);
+				spin_lock_spinning(&sbinfo->shrinklist_lock);
 				/*
 				 * _careful to defend against unlocked access to
 				 * ->shrink_list in shmem_unused_huge_shrink()
@@ -1094,7 +1099,8 @@ static void shmem_evict_inode(struct inode *inode)
 		inode->i_size = 0;
 		shmem_truncate_range(inode, 0, (loff_t)-1);
 		if (!list_empty(&info->shrinklist)) {
-			spin_lock(&sbinfo->shrinklist_lock);
+			//spin_lock(&sbinfo->shrinklist_lock);
+			spin_lock_spinning(&sbinfo->shrinklist_lock);
 			if (!list_empty(&info->shrinklist)) {
 				list_del_init(&info->shrinklist);
 				sbinfo->shrinklist_len--;
@@ -1401,7 +1407,8 @@ static struct mempolicy *shmem_get_sbmpol(struct shmem_sb_info *sbinfo)
 {
 	struct mempolicy *mpol = NULL;
 	if (sbinfo->mpol) {
-		spin_lock(&sbinfo->stat_lock);	/* prevent replace/use races */
+		//spin_lock(&sbinfo->stat_lock);	/* prevent replace/use races */
+		spin_lock_spinning(&sbinfo->stat_lock);	/* prevent replace/use races */
 		mpol = sbinfo->mpol;
 		mpol_get(mpol);
 		spin_unlock(&sbinfo->stat_lock);
@@ -1860,7 +1867,8 @@ alloc_nohuge:		page = shmem_alloc_and_acct_page(gfp, inode,
 			 * Part of the huge page is beyond i_size: subject
 			 * to shrink under memory pressure.
 			 */
-			spin_lock(&sbinfo->shrinklist_lock);
+			//spin_lock(&sbinfo->shrinklist_lock);
+			spin_lock_spinning(&sbinfo->shrinklist_lock);
 			/*
 			 * _careful to defend against unlocked access to
 			 * ->shrink_list in shmem_unused_huge_shrink()
@@ -3440,7 +3448,8 @@ static int shmem_remount_fs(struct super_block *sb, int *flags, char *data)
 	if (shmem_parse_options(data, &config, true))
 		return error;
 
-	spin_lock(&sbinfo->stat_lock);
+	//spin_lock(&sbinfo->stat_lock);
+	spin_lock_spinning(&sbinfo->stat_lock);
 	inodes = sbinfo->max_inodes - sbinfo->free_inodes;
 	if (percpu_counter_compare(&sbinfo->used_blocks, config.max_blocks) > 0)
 		goto out;

@@ -427,7 +427,7 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 	while (atomic_read(&commit_transaction->t_updates)) {
 		DEFINE_WAIT(wait);
 
-		prepare_to_wait(&journal->j_wait_updates, &wait,
+		prepare_to_wait_spinning(&journal->j_wait_updates, &wait,
 					TASK_UNINTERRUPTIBLE);
 		if (atomic_read(&commit_transaction->t_updates)) {
 			spin_unlock(&commit_transaction->t_handle_lock);
@@ -436,7 +436,7 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 			write_lock(&journal->j_state_lock);
 			spin_lock(&commit_transaction->t_handle_lock);
 		}
-		finish_wait(&journal->j_wait_updates, &wait);
+		finish_wait_spinning(&journal->j_wait_updates, &wait);
 	}
 	spin_unlock(&commit_transaction->t_handle_lock);
 

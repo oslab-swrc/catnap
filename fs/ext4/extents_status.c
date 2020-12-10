@@ -303,7 +303,7 @@ static void ext4_es_list_add(struct inode *inode)
 	if (!list_empty(&ei->i_es_list))
 		return;
 
-	spin_lock(&sbi->s_es_lock);
+	spin_lock_spinning(&sbi->s_es_lock);
 	if (list_empty(&ei->i_es_list)) {
 		list_add_tail(&ei->i_es_list, &sbi->s_es_list);
 		sbi->s_es_nr_inode++;
@@ -316,7 +316,7 @@ static void ext4_es_list_del(struct inode *inode)
 	struct ext4_inode_info *ei = EXT4_I(inode);
 	struct ext4_sb_info *sbi = EXT4_SB(inode->i_sb);
 
-	spin_lock(&sbi->s_es_lock);
+	spin_lock_spinning(&sbi->s_es_lock);
 	if (!list_empty(&ei->i_es_list)) {
 		list_del_init(&ei->i_es_list);
 		sbi->s_es_nr_inode--;
@@ -984,7 +984,7 @@ static int __es_shrink(struct ext4_sb_info *sbi, int nr_to_scan,
 	start_time = ktime_get();
 
 retry:
-	spin_lock(&sbi->s_es_lock);
+	spin_lock_spinning(&sbi->s_es_lock);
 	nr_to_walk = sbi->s_es_nr_inode;
 	while (nr_to_walk-- > 0) {
 		if (list_empty(&sbi->s_es_list)) {
@@ -1021,7 +1021,7 @@ retry:
 
 		if (nr_to_scan <= 0)
 			goto out;
-		spin_lock(&sbi->s_es_lock);
+		spin_lock_spinning(&sbi->s_es_lock);
 	}
 	spin_unlock(&sbi->s_es_lock);
 
@@ -1100,7 +1100,7 @@ int ext4_seq_es_shrinker_info_show(struct seq_file *seq, void *v)
 		return 0;
 
 	/* here we just find an inode that has the max nr. of objects */
-	spin_lock(&sbi->s_es_lock);
+	spin_lock_spinning(&sbi->s_es_lock);
 	list_for_each_entry(ei, &sbi->s_es_list, i_es_list) {
 		inode_cnt++;
 		if (max && max->i_es_all_nr < ei->i_es_all_nr)
