@@ -144,6 +144,18 @@ void __lockfunc _raw_spin_lock(raw_spinlock_t *lock)
 	__raw_spin_lock(lock);
 }
 EXPORT_SYMBOL(_raw_spin_lock);
+#ifdef CONFIG_CATNAP_SPINLOCK
+void __lockfunc _raw_spin_lock_catnap(raw_spinlock_t *lock)
+{
+	__raw_spin_lock_catnap(lock);
+}
+EXPORT_SYMBOL(_raw_spin_lock_catnap);
+void __lockfunc _raw_spin_lock_spinning(raw_spinlock_t *lock)
+{
+	__raw_spin_lock_spinning(lock);
+}
+EXPORT_SYMBOL(_raw_spin_lock_spinning);
+#endif
 #endif
 
 #ifndef CONFIG_INLINE_SPIN_LOCK_IRQSAVE
@@ -152,6 +164,18 @@ unsigned long __lockfunc _raw_spin_lock_irqsave(raw_spinlock_t *lock)
 	return __raw_spin_lock_irqsave(lock);
 }
 EXPORT_SYMBOL(_raw_spin_lock_irqsave);
+#ifdef CONFIG_CATNAP_SPINLOCK
+unsigned long __lockfunc _raw_spin_lock_irqsave_catnap(raw_spinlock_t *lock)
+{
+	return __raw_spin_lock_irqsave_catnap(lock);
+}
+EXPORT_SYMBOL(_raw_spin_lock_irqsave_catnap);
+unsigned long __lockfunc _raw_spin_lock_irqsave_spinning(raw_spinlock_t *lock)
+{
+	return __raw_spin_lock_irqsave_spinning(lock);
+}
+EXPORT_SYMBOL(_raw_spin_lock_irqsave_spinning);
+#endif
 #endif
 
 #ifndef CONFIG_INLINE_SPIN_LOCK_IRQ
@@ -160,6 +184,18 @@ void __lockfunc _raw_spin_lock_irq(raw_spinlock_t *lock)
 	__raw_spin_lock_irq(lock);
 }
 EXPORT_SYMBOL(_raw_spin_lock_irq);
+#ifdef CONFIG_CATNAP_SPINLOCK
+void __lockfunc _raw_spin_lock_irq_catnap(raw_spinlock_t *lock)
+{
+	__raw_spin_lock_irq_catnap(lock);
+}
+EXPORT_SYMBOL(_raw_spin_lock_irq_catnap);
+void __lockfunc _raw_spin_lock_irq_spinning(raw_spinlock_t *lock)
+{
+	__raw_spin_lock_irq_spinning(lock);
+}
+EXPORT_SYMBOL(_raw_spin_lock_irq_spinning);
+#endif
 #endif
 
 #ifndef CONFIG_INLINE_SPIN_LOCK_BH

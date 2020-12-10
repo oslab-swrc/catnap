@@ -80,6 +80,8 @@ static bool lock_is_read_held;
 struct lock_stress_stats {
 	long n_lock_fail;
 	long n_lock_acquired;
+	u64 tsc_begin;
+	u64 tsc_end;
 };
 
 /* Forward reference. */
@@ -105,7 +107,7 @@ struct lock_torture_ops {
 struct lock_torture_cxt {
 	int nrealwriters_stress;
 	int nrealreaders_stress;
-	int critsec_length;
+	int critsec_loops;
 	bool debug_lock;
 	atomic_t n_lock_torture_errors;
 	struct lock_torture_ops *cur_ops;
@@ -199,6 +201,7 @@ static struct lock_torture_ops spin_lock_ops = {
 	.name		= "spin_lock"
 };
 
+// 1 loop = 2 cycles
 static inline void delay_loop(unsigned long loops)
 {
 	asm volatile(
@@ -218,33 +221,56 @@ static inline void delay_loop(unsigned long loops)
 		:"a" (loops)
 	);
 }
-
-static void torture_catnap_threshold_delay(struct torture_random_state *trsp)
-{
-	//TODO:
-	unsigned long lpj = this_cpu_read(cpu_info.loops_per_jiffy) ? : loops_per_jiffy;
+static inline unsigned long calculate_loops(int ndelay){
 	int d0;
-	unsigned long xloops = cxt.critsec_length * 0x00005;
+	unsigned long xloops = ndelay * 0x00005;
 
 	xloops *= 4;
 	asm("mull %%edx"
 		:"=d" (xloops), "=&a" (d0)
-		:"1" (xloops), "0" (lpj * (HZ / 4)));
-
-	delay_loop(++xloops);
+		:"1" (xloops), "0" (loops_per_jiffy * (HZ / 4)));
+	
+	return ++xloops;
+}
+static int torture_catnap_pause_lock(void) __acquires(torture_spinlock)
+{
+	queued_spin_lock( (struct qspinlock *) &torture_spinlock.rlock.raw_lock);
+	return 0;
 }
 
-static struct lock_torture_ops catnap_threshold_ops = {
-	.writelock	= torture_spin_lock_write_lock,
+static void torture_catnap_threshold_delay(struct torture_random_state *trsp)
+{
+	//TODO:
+	delay_loop(cxt.critsec_loops);
+}
+
+static struct lock_torture_ops pause_threshold_ops = {
+	.writelock	= torture_catnap_pause_lock,
 	.write_delay	= torture_catnap_threshold_delay,
 	.task_boost     = torture_boost_dummy,
 	.writeunlock	= torture_spin_lock_write_unlock,
 	.readlock       = NULL,
 	.read_delay     = NULL,
 	.readunlock     = NULL,
-	.name		= "catnap_threshold"
+	.name		= "pause_threshold"
 };
 
+static int torture_catnap_onespin_lock(void) __acquires(torture_spinlock)
+{
+	queued_spin_lock_onespin_c1( (struct qspinlock *) &torture_spinlock.rlock.raw_lock);
+	return 0;
+}
+
+static struct lock_torture_ops onespin_threshold_ops = {
+	.writelock	= torture_catnap_onespin_lock,
+	.write_delay	= torture_catnap_threshold_delay,
+	.task_boost     = torture_boost_dummy,
+	.writeunlock	= torture_spin_lock_write_unlock,
+	.readlock       = NULL,
+	.read_delay     = NULL,
+	.readunlock     = NULL,
+	.name		= "onespin_threshold"
+};
 static int torture_spin_lock_write_lock_irq(void)
 __acquires(torture_spinlock)
 {
@@ -674,6 +700,32 @@ static struct lock_torture_ops percpu_rwsem_lock_ops = {
 	.name		= "percpu_rwsem_lock"
 };
 
+static inline u64 rdtsc_begin(void){
+	u32 high, low;
+	
+	asm volatile (
+			"CPUID\n\t"
+			"RDTSC\n\t"
+			"mov %%edx, %0\n\t"
+			"mov %%eax, %1\n\t": "=r" (high), "=r" (low)::
+			"%rax", "%rbx", "%rcx", "%rdx");
+	
+	return ( ((u64) high << 32) | low );
+}
+
+static inline u64 rdtsc_end(void){
+	u32 high, low;
+	
+	asm volatile (
+			"RDTSCP\n\t"
+			"mov %%edx, %0\n\t"
+			"mov %%eax, %1\n\t"
+			"CPUID\n\t": "=r" (high), "=r" (low)::
+			"%rax", "%rbx", "%rcx", "%rdx");
+	
+	return ( ((u64) high << 32) | low );
+}
+
 /*
  * Lock torture writer kthread.  Repeatedly acquires and releases
  * the lock, checking for duplicate acquisitions.
@@ -685,7 +737,9 @@ static int lock_torture_writer(void *arg)
 
 	VERBOSE_TOROUT_STRING("lock_torture_writer task started");
 	set_user_nice(current, MAX_NICE);
-
+	
+	lwsp->tsc_begin = rdtsc_begin();
+	
 	do {
 		if ((torture_random(&rand) & 0xfffff) == 0)
 			schedule_timeout_uninterruptible(1);
@@ -705,7 +759,9 @@ static int lock_torture_writer(void *arg)
 
 		stutter_wait("lock_torture_writer");
 	} while (!torture_must_stop());
-
+	
+	lwsp->tsc_end = rdtsc_end();
+	
 	cxt.cur_ops->task_boost(NULL); /* reset prio */
 	torture_kthread_stopping("lock_torture_writer");
 	return 0;
@@ -751,24 +807,44 @@ static void __torture_print_stats(char *page,
 {
 	bool fail = 0;
 	int i, n_stress;
-	long max = 0, min = statp ? statp[0].n_lock_acquired : 0;
+	u64 first_tsc, last_tsc;
+	u64 now = rdtsc_end();
+//	long max = 0, min = statp ? statp[0].n_lock_acquired : 0;
 	long long sum = 0;
-
+//
 	n_stress = write ? cxt.nrealwriters_stress : cxt.nrealreaders_stress;
+	
+	first_tsc = statp[0].tsc_begin;
+	last_tsc = statp[0].tsc_end;
+	
 	for (i = 0; i < n_stress; i++) {
 		if (statp[i].n_lock_fail)
 			fail = true;
 		sum += statp[i].n_lock_acquired;
-		if (max < statp[i].n_lock_fail)
-			max = statp[i].n_lock_fail;
-		if (min > statp[i].n_lock_fail)
-			min = statp[i].n_lock_fail;
+		if (first_tsc > statp[i].tsc_begin)
+			first_tsc = statp[i].tsc_begin;
+		if (last_tsc < statp[i].tsc_end)
+			last_tsc = statp[i].tsc_end;
+//		if (max < statp[i].n_lock_fail)
+//			max = statp[i].n_lock_fail;
+//		if (min > statp[i].n_lock_fail)
+//			min = statp[i].n_lock_fail;
 	}
+	if (last_tsc < 0) last_tsc = now;
 	page += sprintf(page,
-			"%s:  Total: %lld  Max/Min: %ld/%ld %s  Fail: %d %s\n",
-			write ? "Writes" : "Reads ",
-			sum, max, min, max / 2 > min ? "???" : "",
-			fail, fail ? "!!!" : "");
+			"stats:%s-torture: nthreads: %d  critsec: %d : %d (loops)  acquired: %lld  elapsed: %lld\n",
+			cxt.cur_ops->name,
+			cxt.nrealwriters_stress,
+			critsec_length,
+			cxt.critsec_loops,
+			sum,
+			(last_tsc - first_tsc)
+			);
+//			"%s:  Total: %lld  Max/Min: %ld/%ld %s  Fail: %d %s\n",
+//			write ? "Writes" : "Reads ",
+//			sum, max, min, max / 2 > min ? "???" : "",
+//			fail, fail ? "!!!" : "");
+
 	if (fail)
 		atomic_inc(&cxt.n_lock_torture_errors);
 }
@@ -840,7 +916,7 @@ lock_torture_print_module_parms(struct lock_torture_ops *cur_ops,
 	pr_alert("%s" TORTURE_FLAG
 		 "--- %s%s: critsec_length=%d nwriters_stress=%d nreaders_stress=%d stat_interval=%d verbose=%d shuffle_interval=%d stutter=%d shutdown_secs=%d onoff_interval=%d onoff_holdoff=%d\n",
 		 torture_type, tag, cxt.debug_lock ? " [debug]": "",
-		 cxt.critsec_length,
+		 cxt.critsec_loops,
 		 cxt.nrealwriters_stress, cxt.nrealreaders_stress, stat_interval,
 		 verbose, shuffle_interval, stutter, shutdown_secs,
 		 onoff_interval, onoff_holdoff);
@@ -905,7 +981,8 @@ static int __init lock_torture_init(void)
 	static struct lock_torture_ops *torture_ops[] = {
 		&lock_busted_ops,
 		&spin_lock_ops, &spin_lock_irq_ops,
-		&catnap_threshold_ops,
+		&pause_threshold_ops,
+		&onespin_threshold_ops,
 		&rw_lock_ops, &rw_lock_irq_ops,
 		&mutex_lock_ops,
 		&ww_mutex_lock_ops,
@@ -946,9 +1023,9 @@ static int __init lock_torture_init(void)
 		cxt.cur_ops->init();
 
 	if (critsec_length >= 0)
-		cxt.critsec_length = critsec_length;
+		cxt.critsec_loops = calculate_loops(critsec_length);
 	else
-		cxt.critsec_length = 1500;
+		cxt.critsec_loops = calculate_loops(1500);
 	
 	if (nwriters_stress >= 0)
 		cxt.nrealwriters_stress = nwriters_stress;
@@ -984,6 +1061,8 @@ static int __init lock_torture_init(void)
 		for (i = 0; i < cxt.nrealwriters_stress; i++) {
 			cxt.lwsa[i].n_lock_fail = 0;
 			cxt.lwsa[i].n_lock_acquired = 0;
+			cxt.lwsa[i].tsc_begin = -1;
+			cxt.lwsa[i].tsc_end = -1;
 		}
 	}
 
@@ -1105,6 +1184,7 @@ static int __init lock_torture_init(void)
 		if (firsterr)
 			goto unwind;
 	}
+	
 	torture_init_end();
 	return 0;
 

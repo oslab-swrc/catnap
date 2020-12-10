@@ -74,6 +74,15 @@ static __always_inline int queued_spin_trylock(struct qspinlock *lock)
 
 extern void queued_spin_lock_slowpath(struct qspinlock *lock, u32 val);
 
+extern void queued_spin_lock_slowpath_onespin_c1(struct qspinlock *lock, u32 val);
+extern void queued_spin_lock_slowpath_onespin_c2(struct qspinlock *lock, u32 val);
+
+extern void queued_spin_lock_slowpath_twospin_c1(struct qspinlock *lock, u32 val);
+extern void queued_spin_lock_slowpath_twospin_c2(struct qspinlock *lock, u32 val);
+
+extern void queued_spin_lock_slowpath_mpause(struct qspinlock *lock, u32 val);
+extern void queued_spin_lock_slowpath_mfence(struct qspinlock *lock, u32 val);
+
 /**
  * queued_spin_lock - acquire a queued spinlock
  * @lock: Pointer to queued spinlock structure
@@ -85,7 +94,70 @@ static __always_inline void queued_spin_lock(struct qspinlock *lock)
 	val = atomic_cmpxchg_acquire(&lock->val, 0, _Q_LOCKED_VAL);
 	if (likely(val == 0))
 		return;
+
 	queued_spin_lock_slowpath(lock, val);
+}
+
+static __always_inline void queued_spin_lock_onespin_c1(struct qspinlock *lock)
+{
+	u32 val;
+
+	val = atomic_cmpxchg_acquire(&lock->val, 0, _Q_LOCKED_VAL);
+	if (likely(val == 0))
+		return;
+	queued_spin_lock_slowpath_onespin_c1(lock, val);
+}
+
+static __always_inline void queued_spin_lock_onespin_c2(struct qspinlock *lock)
+{
+	u32 val;
+
+	val = atomic_cmpxchg_acquire(&lock->val, 0, _Q_LOCKED_VAL);
+	if (likely(val == 0))
+		return;
+	queued_spin_lock_slowpath_onespin_c2(lock, val);
+}
+
+static __always_inline void queued_spin_lock_twospin_c1(struct qspinlock *lock)
+{
+	u32 val;
+
+	val = atomic_cmpxchg_acquire(&lock->val, 0, _Q_LOCKED_VAL);
+	if (likely(val == 0))
+		return;
+	queued_spin_lock_slowpath_twospin_c1(lock, val);
+}
+
+static __always_inline void queued_spin_lock_twospin_c2(struct qspinlock *lock)
+{
+	u32 val;
+
+	val = atomic_cmpxchg_acquire(&lock->val, 0, _Q_LOCKED_VAL);
+	if (likely(val == 0))
+		return;
+	queued_spin_lock_slowpath_twospin_c2(lock, val);
+}
+
+static __always_inline void queued_spin_lock_mpause(struct qspinlock *lock)
+{
+	u32 val;
+
+	val = atomic_cmpxchg_acquire(&lock->val, 0, _Q_LOCKED_VAL);
+	if (likely(val == 0))
+		return;
+
+	queued_spin_lock_slowpath_mpause(lock, val);
+}
+
+static __always_inline void queued_spin_lock_mfence(struct qspinlock *lock)
+{
+	u32 val;
+
+	val = atomic_cmpxchg_acquire(&lock->val, 0, _Q_LOCKED_VAL);
+	if (likely(val == 0))
+		return;
+
+	queued_spin_lock_slowpath_mfence(lock, val);
 }
 
 #ifndef queued_spin_unlock
@@ -116,7 +188,29 @@ static __always_inline bool virt_spin_lock(struct qspinlock *lock)
 #define arch_spin_is_locked(l)		queued_spin_is_locked(l)
 #define arch_spin_is_contended(l)	queued_spin_is_contended(l)
 #define arch_spin_value_unlocked(l)	queued_spin_value_unlocked(l)
-#define arch_spin_lock(l)		queued_spin_lock(l)
+
+#if defined(CONFIG_CATNAP_DEFAULT_NONE)
+#define arch_spin_lock(l)			queued_spin_lock(l)
+#elif defined(CONFIG_CATNAP_DEFAULT_ONESPIN_C1)
+#define arch_spin_lock(l)			queued_spin_lock_onespin_c1(l)
+#elif defined(CONFIG_CATNAP_DEFAULT_TWOSPIN_C1)
+#define arch_spin_lock(l)			queued_spin_lock_twospin_c1(l)
+#elif defined(CONFIG_CATNAP_DEFAULT_ONESPIN_C2)
+#define arch_spin_lock(l)			queued_spin_lock_onespin_c2(l)
+#elif defined(CONFIG_CATNAP_DEFAULT_TWOSPIN_C2)
+#define arch_spin_lock(l)			queued_spin_lock_twospin_c2(l)
+#else
+#define arch_spin_lock(l)			queued_spin_lock(l)
+#endif
+
+#ifdef CONIFG_CATNAP_SPINLOCK_SELECTIVE
+#define arch_spin_lock_spinning(l)	queued_spin_lock(l)
+#define arch_spin_lock_catnap(l)	queued_spin_lock_onespin_c1(l)
+#else
+#define arch_spin_lock_spinning(l)	arch_spin_lock(l)
+#define arch_spin_lock_catnap(l)	arch_spin_lock(l)
+#endif
+
 #define arch_spin_trylock(l)		queued_spin_trylock(l)
 #define arch_spin_unlock(l)		queued_spin_unlock(l)
 

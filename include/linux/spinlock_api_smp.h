@@ -20,17 +20,34 @@ int in_lock_functions(unsigned long addr);
 #define assert_raw_spin_locked(x)	BUG_ON(!raw_spin_is_locked(x))
 
 void __lockfunc _raw_spin_lock(raw_spinlock_t *lock)		__acquires(lock);
+void __lockfunc _raw_spin_lock_catnap(raw_spinlock_t *lock)		__acquires(lock);
+void __lockfunc _raw_spin_lock_spinning(raw_spinlock_t *lock)		__acquires(lock);
+
 void __lockfunc _raw_spin_lock_nested(raw_spinlock_t *lock, int subclass)
 								__acquires(lock);
 void __lockfunc
 _raw_spin_lock_nest_lock(raw_spinlock_t *lock, struct lockdep_map *map)
 								__acquires(lock);
 void __lockfunc _raw_spin_lock_bh(raw_spinlock_t *lock)		__acquires(lock);
+
 void __lockfunc _raw_spin_lock_irq(raw_spinlock_t *lock)
 								__acquires(lock);
 
+#ifdef CONFIG_CATNAP_SPINLOCK
+void __lockfunc _raw_spin_lock_irq_catnap(raw_spinlock_t *lock)
+								__acquires(lock);
+void __lockfunc _raw_spin_lock_irq_spinning(raw_spinlock_t *lock)
+								__acquires(lock);
+#endif
 unsigned long __lockfunc _raw_spin_lock_irqsave(raw_spinlock_t *lock)
 								__acquires(lock);
+#ifdef CONFIG_CATNAP_SPINLOCK
+unsigned long __lockfunc _raw_spin_lock_irqsave_catnap(raw_spinlock_t *lock)
+								__acquires(lock);
+unsigned long __lockfunc _raw_spin_lock_irqsave_spinning(raw_spinlock_t *lock)
+								__acquires(lock);
+#endif
+
 unsigned long __lockfunc
 _raw_spin_lock_irqsave_nested(raw_spinlock_t *lock, int subclass)
 								__acquires(lock);
@@ -120,6 +137,47 @@ static inline unsigned long __raw_spin_lock_irqsave(raw_spinlock_t *lock)
 #endif
 	return flags;
 }
+#ifdef CONFIG_CATNAP_SPINLOCK
+static inline unsigned long __raw_spin_lock_irqsave_catnap(raw_spinlock_t *lock)
+{
+	unsigned long flags;
+
+	local_irq_save(flags);
+	preempt_disable();
+	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
+	/*
+	 * On lockdep we dont want the hand-coded irq-enable of
+	 * do_raw_spin_lock_flags() code, because lockdep assumes
+	 * that interrupts are not re-enabled during lock-acquire:
+	 */
+#ifdef CONFIG_LOCKDEP
+	LOCK_CONTENDED(lock, do_raw_spin_trylock, do_raw_spin_lock_catnap);
+#else
+	do_raw_spin_lock_catnap(lock);
+#endif
+	return flags;
+}
+
+static inline unsigned long __raw_spin_lock_irqsave_spinning(raw_spinlock_t *lock)
+{
+	unsigned long flags;
+
+	local_irq_save(flags);
+	preempt_disable();
+	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
+	/*
+	 * On lockdep we dont want the hand-coded irq-enable of
+	 * do_raw_spin_lock_flags() code, because lockdep assumes
+	 * that interrupts are not re-enabled during lock-acquire:
+	 */
+#ifdef CONFIG_LOCKDEP
+	LOCK_CONTENDED(lock, do_raw_spin_trylock, do_raw_spin_lock_spinning);
+#else
+	do_raw_spin_lock_spinning(lock);
+#endif
+	return flags;
+}
+#endif
 
 static inline void __raw_spin_lock_irq(raw_spinlock_t *lock)
 {
@@ -128,6 +186,23 @@ static inline void __raw_spin_lock_irq(raw_spinlock_t *lock)
 	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
 	LOCK_CONTENDED(lock, do_raw_spin_trylock, do_raw_spin_lock);
 }
+#ifdef CONFIG_CATNAP_SPINLOCK
+static inline void __raw_spin_lock_irq_catnap(raw_spinlock_t *lock)
+{
+	local_irq_disable();
+	preempt_disable();
+	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
+	LOCK_CONTENDED(lock, do_raw_spin_trylock, do_raw_spin_lock_catnap);
+}
+
+static inline void __raw_spin_lock_irq_spinning(raw_spinlock_t *lock)
+{
+	local_irq_disable();
+	preempt_disable();
+	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
+	LOCK_CONTENDED(lock, do_raw_spin_trylock, do_raw_spin_lock_spinning);
+}
+#endif
 
 static inline void __raw_spin_lock_bh(raw_spinlock_t *lock)
 {
@@ -142,6 +217,21 @@ static inline void __raw_spin_lock(raw_spinlock_t *lock)
 	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
 	LOCK_CONTENDED(lock, do_raw_spin_trylock, do_raw_spin_lock);
 }
+#ifdef CONFIG_CATNAP_SPINLOCK
+static inline void __raw_spin_lock_catnap(raw_spinlock_t *lock)
+{
+	preempt_disable();
+	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
+	LOCK_CONTENDED(lock, do_raw_spin_trylock, do_raw_spin_lock_catnap);
+}
+
+static inline void __raw_spin_lock_spinning(raw_spinlock_t *lock)
+{
+	preempt_disable();
+	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
+	LOCK_CONTENDED(lock, do_raw_spin_trylock, do_raw_spin_lock_spinning);
+}
+#endif
 
 #endif /* !CONFIG_GENERIC_LOCKBREAK || CONFIG_DEBUG_LOCK_ALLOC */
 

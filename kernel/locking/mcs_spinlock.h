@@ -45,6 +45,48 @@ do {									\
 	smp_store_release((l), 1)
 #endif
 
+
+#include <asm/mwait.h>
+#ifndef smp_cond_load_acquire_mwait
+#define smp_cond_load_acquire_mwait(ptr, cond_expr, hint) ({    \
+        typeof(ptr) __PTR = (ptr);                              \
+        typeof(*ptr) VAL;                                       \
+        for (;;) {                                              \
+                __monitor(__PTR, 0, 0);                        \
+                VAL = READ_ONCE(*__PTR);                        \
+                if (unlikely(cond_expr))                                  \
+                        break;                                  \
+                __mwait(hint, 0);                               \
+                VAL = READ_ONCE(*__PTR);                        \
+                if (likely(cond_expr))                                  \
+                        break;                                  \
+        }                                                       \
+        VAL;                                                    \
+})
+#endif
+
+#ifndef arch_mcs_spin_lock_contended_mwait
+#define arch_mcs_spin_lock_contended_mwait(l, hint) 			\
+do {                                                            \
+        smp_cond_load_acquire_mwait(l, VAL, hint);              \
+} while (0)
+#endif
+
+
+#ifndef arch_mcs_spin_lock_contended_mpause
+#define arch_mcs_spin_lock_contended_mpause(l) 			\
+do {                                                            \
+        smp_cond_load_acquire_mpause(l, VAL);              \
+} while (0)
+#endif
+
+#ifndef arch_mcs_spin_lock_contended_mfence
+#define arch_mcs_spin_lock_contended_mfence(l) 			\
+do {                                                            \
+        smp_cond_load_acquire_mfence(l, VAL);              \
+} while (0)
+#endif
+
 /*
  * Note: the smp_load_acquire/smp_store_release pair is not
  * sufficient to form a full memory barrier across

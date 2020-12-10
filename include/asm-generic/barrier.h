@@ -261,5 +261,53 @@ do {									\
 })
 #endif
 
+#ifndef smp_cond_load_relaxed_mpause
+#define smp_cond_load_relaxed_mpause(ptr, cond_expr) ({		\
+	typeof(ptr) __PTR = (ptr);				\
+	typeof(*ptr) VAL;					\
+	for (;;) {						\
+		VAL = READ_ONCE(*__PTR);			\
+		if (cond_expr)					\
+			break;					\
+		cpu_relax();					\
+		cpu_relax();					\
+		cpu_relax();					\
+	}							\
+	VAL;							\
+})
+#endif
+
+#ifndef smp_cond_load_relaxed_mfence
+#define smp_cond_load_relaxed_mfence(ptr, cond_expr) ({		\
+	typeof(ptr) __PTR = (ptr);				\
+	typeof(*ptr) VAL;					\
+	for (;;) {						\
+		VAL = READ_ONCE(*__PTR);			\
+		if (cond_expr)					\
+			break;					\
+		asm volatile("mfence":::"memory");	\
+	}							\
+	VAL;							\
+})
+#endif
+
+#ifndef smp_cond_load_acquire_mpause
+#define smp_cond_load_acquire_mpause(ptr, cond_expr) ({		\
+	typeof(*ptr) _val;					\
+	_val = smp_cond_load_relaxed_mpause(ptr, cond_expr);		\
+	smp_acquire__after_ctrl_dep();				\
+	_val;							\
+})
+#endif
+
+#ifndef smp_cond_load_acquire_mfence
+#define smp_cond_load_acquire_mfence(ptr, cond_expr) ({		\
+	typeof(*ptr) _val;					\
+	_val = smp_cond_load_relaxed_mfence(ptr, cond_expr);		\
+	smp_acquire__after_ctrl_dep();				\
+	_val;							\
+})
+#endif
+
 #endif /* !__ASSEMBLY__ */
 #endif /* __ASM_GENERIC_BARRIER_H */

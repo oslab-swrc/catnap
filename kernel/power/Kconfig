@@ -298,3 +298,28 @@ config PM_GENERIC_DOMAINS_OF
 
 config CPU_PM
 	bool
+
+config CATNAP_SPINLOCK
+	bool "Catnap spinlock"
+
+choice
+	prompt "Default Catnap spinlock"
+	depends on CATNAP_SPINLOCK
+	default CATNAP_DEFAULT_NONE
+	---help---
+		Default Catnap spinlock
+config CATNAP_DEFAULT_ONESPIN_C1
+	bool "One spinner (C1)"
+config CATNAP_DEFAULT_TWOSPIN_C1
+	bool "Two spinner (C1)"
+config CATNAP_DEFAULT_ONESPIN_C2
+	bool "One spinner (C2)"
+config CATNAP_DEFAULT_TWOSPIN_C2
+	bool "Two spinner (C2)"
+config CATNAP_DEFAULT_NONE
+	bool "No Catnap"
+endchoice
+
+config CATNAP_SPINLOCK_SELECTIVE
+	bool "Selective catnap spinlock"
+	depends on CATNAP_SPINLOCK
