@@ -373,9 +373,10 @@ static void snprint_time(char *buf, size_t bufsiz, s64 nr)
 	s64 div;
 	s32 rem;
 
-	nr += 5; /* for display rounding */
+//	nr += 5; /* for display rounding */
 	div = div_s64_rem(nr, 1000, &rem);
-	snprintf(buf, bufsiz, "%lld.%02d", (long long)div, (int)rem/10);
+//	snprintf(buf, bufsiz, "%lld.%02d", (long long)div, (int)rem/10);
+	snprintf(buf, bufsiz, "%lld.%03d", (long long)div, (int)rem);
 }
 
 static void seq_time(struct seq_file *m, s64 time)
@@ -388,11 +389,21 @@ static void seq_time(struct seq_file *m, s64 time)
 
 static void seq_lock_time(struct seq_file *m, struct lock_time *lt)
 {
+	s64 sq_total = 0;
+	s32 rem = 0;
+	
 	seq_printf(m, "%14lu", lt->nr);
 	seq_time(m, lt->min);
 	seq_time(m, lt->max);
 	seq_time(m, lt->total);
-	seq_time(m, lt->nr ? div_s64(lt->total, lt->nr) : 0);
+	if(lt->nr > 0) {
+		seq_time(m, div_s64(lt->total, lt->nr));
+		seq_printf(m, " %14lu.%06lu", lt->sq_total, lt->sq_rem);
+	}
+	else {
+		seq_time(m, 0);
+		seq_time(m, 0);
+	}
 }
 
 static void seq_stats(struct seq_file *m, struct lock_stat_data *data)
@@ -402,12 +413,12 @@ static void seq_stats(struct seq_file *m, struct lock_stat_data *data)
 	struct lock_class *class;
 	const char *cname;
 	int i, namelen;
-	char name[39];
+	char name[49];
 
 	class = data->class;
 	stats = &data->stats;
 
-	namelen = 38;
+	namelen = 48;
 	if (class->name_version > 1)
 		namelen -= 2; /* XXX truncates versions > 9 */
 	if (class->subclass)
@@ -444,9 +455,9 @@ static void seq_stats(struct seq_file *m, struct lock_stat_data *data)
 
 	if (stats->write_holdtime.nr) {
 		if (stats->read_holdtime.nr)
-			seq_printf(m, "%38s-W:", name);
+			seq_printf(m, "%48s-W:", name);
 		else
-			seq_printf(m, "%40s:", name);
+			seq_printf(m, "%50s:", name);
 
 		seq_printf(m, "%14lu ", stats->bounces[bounce_contended_write]);
 		seq_lock_time(m, &stats->write_waittime);
@@ -456,7 +467,7 @@ static void seq_stats(struct seq_file *m, struct lock_stat_data *data)
 	}
 
 	if (stats->read_holdtime.nr) {
-		seq_printf(m, "%38s-R:", name);
+		seq_printf(m, "%48s-R:", name);
 		seq_printf(m, "%14lu ", stats->bounces[bounce_contended_read]);
 		seq_lock_time(m, &stats->read_waittime);
 		seq_printf(m, " %14lu ", stats->bounces[bounce_acquired_read]);
@@ -477,11 +488,11 @@ static void seq_stats(struct seq_file *m, struct lock_stat_data *data)
 			break;
 
 		if (!i)
-			seq_line(m, '-', 40-namelen, namelen);
+			seq_line(m, '-', 50-namelen, namelen);
 
 		snprintf(ip, sizeof(ip), "[<%p>]",
 				(void *)class->contention_point[i]);
-		seq_printf(m, "%40s %14lu %29s %pS\n",
+		seq_printf(m, "%50s %14lu %29s %pS\n",
 			   name, stats->contention_point[i],
 			   ip, (void *)class->contention_point[i]);
 	}
@@ -492,17 +503,17 @@ static void seq_stats(struct seq_file *m, struct lock_stat_data *data)
 			break;
 
 		if (!i)
-			seq_line(m, '-', 40-namelen, namelen);
+			seq_line(m, '-', 50-namelen, namelen);
 
 		snprintf(ip, sizeof(ip), "[<%p>]",
 				(void *)class->contending_point[i]);
-		seq_printf(m, "%40s %14lu %29s %pS\n",
+		seq_printf(m, "%50s %14lu %29s %pS\n",
 			   name, stats->contending_point[i],
 			   ip, (void *)class->contending_point[i]);
 	}
 	if (i) {
 		seq_puts(m, "\n");
-		seq_line(m, '.', 0, 40 + 1 + 12 * (14 + 1));
+		seq_line(m, '.', 0, 50 + 1 + 12 * (14 + 1) + 2 * (20 + 1));
 		seq_puts(m, "\n");
 	}
 }
@@ -514,9 +525,9 @@ static void seq_header(struct seq_file *m)
 	if (unlikely(!debug_locks))
 		seq_printf(m, "*WARNING* lock debugging disabled!! - possibly due to a lockdep warning\n");
 
-	seq_line(m, '-', 0, 40 + 1 + 12 * (14 + 1));
-	seq_printf(m, "%40s %14s %14s %14s %14s %14s %14s %14s %14s %14s %14s "
-			"%14s %14s\n",
+	seq_line(m, '-', 0, 50 + 1 + 12 * (14 + 1) + 2 * (20 + 1));
+	seq_printf(m, "%50s %14s %14s %14s %14s %14s %14s %20s %14s %14s %14s %14s "
+			"%14s %14s %20s\n",
 			"class name",
 			"con-bounces",
 			"contentions",
@@ -524,13 +535,15 @@ static void seq_header(struct seq_file *m)
 			"waittime-max",
 			"waittime-total",
 			"waittime-avg",
+			"waittime-sqtot",
 			"acq-bounces",
 			"acquisitions",
 			"holdtime-min",
 			"holdtime-max",
 			"holdtime-total",
-			"holdtime-avg");
-	seq_line(m, '-', 0, 40 + 1 + 12 * (14 + 1));
+			"holdtime-avg",
+			"holdtime-sqtot");
+	seq_line(m, '-', 0, 50 + 1 + 12 * (14 + 1) + 2 * (20 + 1));
 	seq_printf(m, "\n");
 }
 

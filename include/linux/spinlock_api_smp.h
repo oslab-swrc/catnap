@@ -32,7 +32,6 @@ void __lockfunc _raw_spin_lock_bh(raw_spinlock_t *lock)		__acquires(lock);
 
 void __lockfunc _raw_spin_lock_irq(raw_spinlock_t *lock)
 								__acquires(lock);
-
 #ifdef CONFIG_CATNAP_SPINLOCK
 void __lockfunc _raw_spin_lock_irq_catnap(raw_spinlock_t *lock)
 								__acquires(lock);

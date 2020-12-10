@@ -54,11 +54,11 @@ do {									\
         for (;;) {                                              \
                 __monitor(__PTR, 0, 0);                        \
                 VAL = READ_ONCE(*__PTR);                        \
-                if (unlikely(cond_expr))                                  \
+                if (cond_expr)                                  \
                         break;                                  \
                 __mwait(hint, 0);                               \
                 VAL = READ_ONCE(*__PTR);                        \
-                if (likely(cond_expr))                                  \
+                if (cond_expr)                                  \
                         break;                                  \
         }                                                       \
         VAL;                                                    \

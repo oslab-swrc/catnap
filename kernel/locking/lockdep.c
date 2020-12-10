@@ -178,6 +178,8 @@ static int lock_point(unsigned long points[], unsigned long ip)
 
 static void lock_time_inc(struct lock_time *lt, u64 time)
 {
+	s32 rem;
+	
 	if (time > lt->max)
 		lt->max = time;
 
@@ -186,10 +188,14 @@ static void lock_time_inc(struct lock_time *lt, u64 time)
 
 	lt->total += time;
 	lt->nr++;
+	lt->sq_rem += time * time;
+	lt->sq_total += div_s64_rem(lt->sq_rem,1000000,&rem);
+	lt->sq_rem = rem;
 }
 
 static inline void lock_time_add(struct lock_time *src, struct lock_time *dst)
 {
+	s32 rem;
 	if (!src->nr)
 		return;
 
@@ -201,6 +207,10 @@ static inline void lock_time_add(struct lock_time *src, struct lock_time *dst)
 
 	dst->total += src->total;
 	dst->nr += src->nr;
+	dst->sq_rem += src->sq_rem;
+	dst->sq_total += src->sq_total;
+	dst->sq_total += div_s64_rem(dst->sq_rem,1000000,&rem);
+	dst->sq_rem = rem;
 }
 
 struct lock_class_stats lock_stats(struct lock_class *class)

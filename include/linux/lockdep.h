@@ -60,7 +60,7 @@ struct lock_class_key {
 
 extern struct lock_class_key __lockdep_no_validate__;
 
-#define LOCKSTAT_POINTS		4
+#define LOCKSTAT_POINTS		8
 
 /*
  * The lock-class itself:
@@ -119,6 +119,8 @@ struct lock_time {
 	s64				max;
 	s64				total;
 	unsigned long			nr;
+	s64				sq_total; // unit: 2^32 us
+	s64				sq_rem; // unit: us
 };
 
 enum bounce_type {
