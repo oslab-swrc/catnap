@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Catnap spinlock implemented by Youngjoo Woo
+// SPDX-FileCopyrightText:  Portions Copyright (c) 2019 Sungkyunkwan University
+
 /*
  * Queued spinlock
  *

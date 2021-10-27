@@ -1,4 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0 */
+
+// Youngjoo Woo added arch_mcs_spin_lock_contended_mpause, arch_mcs_spin_lock_contended_mfence, smp_cond_load_acquire_mwait
+// SPDX-FileCopyrightText: Portions Copyright (c) 2019 Sungkyunkwan University
+
 /*
  * MCS lock defines
  *

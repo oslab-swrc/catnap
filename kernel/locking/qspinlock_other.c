@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Catnap spinlock implemented by Youngjoo Woo
+// qspinlock_other.c is implemented based on qspinlock.c
+// SPDX-FileCopyrightText: Copyright (c) 2019 Sungkyunkwan University
 
 #if !defined(_GEN_CATNAP_OTHER_MFENCE)
 

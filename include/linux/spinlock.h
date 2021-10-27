@@ -1,4 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
+// Catnap spinlock implemented by Youngjoo Woo
+// SPDX-FileCopyrightText:  Portions Copyright (c) 2019 Sungkyunkwan University
+
 #ifndef __LINUX_SPINLOCK_H
 #define __LINUX_SPINLOCK_H
 

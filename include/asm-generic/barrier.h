@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Youngjoo Woo added smp_cond_load_relaxed_mpause, smp_cond_load_relaxed_mfence, smp_cond_load_acquire_mpause, smp_cond_load_acquire_mfence
+// SPDX-FileCopyrightText: Portions Copyright (c) 2019 Sungkyunkwan University
+
 /*
  * Generic barrier definitions.
  *

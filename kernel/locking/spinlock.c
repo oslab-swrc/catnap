@@ -15,6 +15,9 @@
  * frame contact the architecture maintainers.
  */
 
+// Catnap spinlock implemented by Youngjoo Woo
+// SPDX-FileCopyrightText:  Portions Copyright (c) 2019 Sungkyunkwan University
+
 #include <linux/linkage.h>
 #include <linux/preempt.h>
 #include <linux/spinlock.h>
